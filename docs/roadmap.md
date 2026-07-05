@@ -30,10 +30,16 @@
 - [x] kb_vector_record 表记录
 - [x] 文档状态更新（PARSED → INDEXED / FAILED）
 
-## 第五阶段
+## 第五阶段（已完成）
 
-- [ ] TopK 相似性检索
-- [ ] RAG 问答接口
+- [x] TopK 相似性检索（POST /api/search）
+- [x] Qdrant 向量搜索（Cosine 相似度）
+- [x] 检索结果返回（documentId、chunkId、chunkIndex、content、score）
+- [x] 检索耗时统计（costMs）
+
+## 第五阶段（后续）
+
+- [ ] RAG 问答接口（检索 + 大模型生成）
 - [ ] 引用来源返回
 - [ ] AI 调用日志记录（ai_call_log 表）
 

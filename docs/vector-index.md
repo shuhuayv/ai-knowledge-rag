@@ -95,6 +95,20 @@ POST /api/documents/{id}/index
 3. **不支持批量**：逐 Chunk 串行 Embedding + Upsert，大数据量下性能较差
 4. **不支持检索**：当前仅完成向量入库，尚未实现 TopK 检索
 
+## 检索流程
+
+向量入库完成后，可通过 `POST /api/search` 进行语义检索：
+
+```
+用户查询 → EmbeddingService.embed(query) → QdrantVectorService.search("kb_chunks", vector, topK)
+                                                ↓
+                                         Qdrant Cosine 相似度排序
+                                                ↓
+                                         返回 TopK SearchResultItem
+```
+
+详见 [docs/search.md](search.md)。
+
 ## 后续替换真实 Embedding
 
 1. 实现 `EmbeddingService` 新实现类，调用真实 Embedding API

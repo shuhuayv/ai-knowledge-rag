@@ -98,7 +98,13 @@ http://localhost:8080/v3/api-docs
 | GET | /api/documents/{id}/vectors | 查询文档的向量记录列表 |
 | GET | /api/documents/{id}/vectors/page?pageNum=1&pageSize=10 | 分页查询文档的向量记录 |
 
-详见 [docs/document-api.md](docs/document-api.md)。
+### 检索接口
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | /api/search | 语义检索，返回 TopK 最相关 Chunk |
+
+详见 [docs/search.md](docs/search.md)。
 
 ## 数据库表结构
 
@@ -126,10 +132,15 @@ src/main/java/com/shuhuayv/rag/
 ├── config/
 │   └── OpenApiConfig.java
 ├── controller/
-│   └── KbDocumentController.java
+│   ├── KbDocumentController.java
+│   └── SearchController.java
 ├── dto/
 │   ├── DocumentUploadResponse.java
-│   └── DocumentParseResponse.java
+│   ├── DocumentParseResponse.java
+│   ├── DocumentIndexResponse.java
+│   ├── SearchRequest.java
+│   ├── SearchResultItem.java
+│   └── SearchResponse.java
 ├── entity/
 │   ├── KbDocument.java
 │   ├── KbChunk.java
@@ -156,11 +167,13 @@ src/main/java/com/shuhuayv/rag/
     ├── DocumentParseService.java
     ├── ChunkService.java
     ├── DocumentIndexService.java
+    ├── SearchService.java
     └── impl/
         ├── KbDocumentServiceImpl.java
         ├── DocumentParseServiceImpl.java
         ├── ChunkServiceImpl.java
-        └── DocumentIndexServiceImpl.java
+        ├── DocumentIndexServiceImpl.java
+        └── SearchServiceImpl.java
 ```
 
 ## 后续计划
