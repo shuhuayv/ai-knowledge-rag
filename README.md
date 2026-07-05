@@ -106,6 +106,14 @@ http://localhost:8080/v3/api-docs
 
 详见 [docs/search.md](docs/search.md)。
 
+### RAG 问答接口
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | /api/rag/ask | RAG 问答（检索 + AI 生成回答 + 引用来源） |
+
+详见 [docs/rag.md](docs/rag.md)。
+
 ## 数据库表结构
 
 | 表名 | 说明 |
@@ -133,14 +141,18 @@ src/main/java/com/shuhuayv/rag/
 │   └── OpenApiConfig.java
 ├── controller/
 │   ├── KbDocumentController.java
-│   └── SearchController.java
+│   ├── SearchController.java
+│   └── RagController.java
 ├── dto/
 │   ├── DocumentUploadResponse.java
 │   ├── DocumentParseResponse.java
 │   ├── DocumentIndexResponse.java
 │   ├── SearchRequest.java
 │   ├── SearchResultItem.java
-│   └── SearchResponse.java
+│   ├── SearchResponse.java
+│   ├── RagAskRequest.java
+│   ├── RagReferenceItem.java
+│   └── RagAskResponse.java
 ├── entity/
 │   ├── KbDocument.java
 │   ├── KbChunk.java
@@ -151,7 +163,8 @@ src/main/java/com/shuhuayv/rag/
 ├── mapper/
 │   ├── KbDocumentMapper.java
 │   ├── KbChunkMapper.java
-│   └── KbVectorRecordMapper.java
+│   ├── KbVectorRecordMapper.java
+│   └── AiCallLogMapper.java
 ├── embedding/
 │   └── service/
 │       ├── EmbeddingService.java
@@ -168,12 +181,18 @@ src/main/java/com/shuhuayv/rag/
     ├── ChunkService.java
     ├── DocumentIndexService.java
     ├── SearchService.java
-    └── impl/
+    ├── AiAnswerService.java
+    ├── PromptBuildService.java
+    ├── RagService.java
+└── impl/
         ├── KbDocumentServiceImpl.java
         ├── DocumentParseServiceImpl.java
         ├── ChunkServiceImpl.java
         ├── DocumentIndexServiceImpl.java
-        └── SearchServiceImpl.java
+        ├── SearchServiceImpl.java
+        ├── MockAiAnswerServiceImpl.java
+        ├── PromptBuildServiceImpl.java
+        └── RagServiceImpl.java
 ```
 
 ## 后续计划

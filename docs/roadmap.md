@@ -39,13 +39,17 @@
 
 ## 第五阶段（后续）
 
-- [ ] RAG 问答接口（检索 + 大模型生成）
-- [ ] 引用来源返回
-- [ ] AI 调用日志记录（ai_call_log 表）
+- [x] RAG 问答接口（检索 + AI 生成回答）
+- [x] 引用来源返回
+- [x] AI 调用日志记录（ai_call_log 表）
 
 ## 第六阶段
 
-- [ ] 支持更多文件格式（DOCX/Markdown）
+- [ ] 替换 Mock Embedding 为真实 Embedding 模型
+- [ ] 替换 Mock AI 为大模型 API（OpenAI / DeepSeek）
+- [ ] 支持多轮对话
+- [ ] SSE 流式输出
+- [ ] 支持更多文件格式（DOCX / Markdown）
 - [ ] 性能优化
 - [ ] 接口限流
 - [ ] 用户认证
