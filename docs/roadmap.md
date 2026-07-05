@@ -10,17 +10,17 @@
 - [x] Swagger 接口文档
 - [x] Qdrant 环境准备
 
-## 第二阶段
+## 第二阶段（已完成）
 
-- [ ] TXT 文件内容解析
-- [ ] PDFBox 解析 PDF 文件内容
-- [ ] 文档状态更新（UPLOADED → PARSING → PARSED）
+- [x] TXT 文件内容解析
+- [x] PDFBox 解析 PDF 文件内容
+- [x] 文档状态更新（UPLOADED → PARSED / FAILED）
 
-## 第三阶段
+## 第三阶段（已完成）
 
-- [ ] 文档内容 Chunk 切分
-- [ ] 滑动窗口切分策略
-- [ ] Chunk 入库（kb_chunk 表）
+- [x] 文档内容 Chunk 切分
+- [x] 滑动窗口切分策略（500 字符 + 80 字符 overlap）
+- [x] Chunk 入库（kb_chunk 表）
 
 ## 第四阶段
 

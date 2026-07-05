@@ -9,6 +9,9 @@
 | GET | /api/documents/page | 分页查询文档 |
 | GET | /api/documents/{id} | 查询文档详情 |
 | DELETE | /api/documents/{id} | 删除文档 |
+| POST | /api/documents/{id}/parse | 解析文档并切分 Chunk |
+| GET | /api/documents/{id}/chunks | 查询文档 Chunk 列表 |
+| GET | /api/documents/{id}/chunks/page | 分页查询文档 Chunk |
 
 ## 上传文档
 
@@ -78,3 +81,53 @@ DELETE /api/documents/{id}
 ```
 
 删除数据库记录，同时尝试删除本地文件。如果文件不存在，仅删除数据库记录。
+
+## 解析文档
+
+```
+POST /api/documents/{id}/parse
+```
+
+功能：解析指定文档内容，并自动切分为 Chunk 存入 `kb_chunk` 表。
+
+- 支持 TXT 和 PDF 格式
+- 解析成功后文档状态更新为 `PARSED`
+- 解析失败后文档状态更新为 `FAILED`
+- 重新解析时会先删除旧的 Chunk 再重新生成
+
+响应示例：
+
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "documentId": 1,
+    "fileName": "企业知识库使用手册.pdf",
+    "status": "PARSED",
+    "chunkCount": 15,
+    "message": "文档解析并切分完成，共生成 15 个 Chunk"
+  }
+}
+```
+
+## 查询文档 Chunk 列表
+
+```
+GET /api/documents/{id}/chunks
+```
+
+返回指定文档的所有 Chunk，按 `chunkIndex` 升序排列。
+
+## 分页查询文档 Chunk
+
+```
+GET /api/documents/{id}/chunks/page?pageNum=1&pageSize=10
+```
+
+参数：
+
+| 参数 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| pageNum | long | 1 | 页码 |
+| pageSize | long | 10 | 每页条数 |

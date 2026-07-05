@@ -91,6 +91,9 @@ http://localhost:8080/v3/api-docs
 | GET | /api/documents/page?pageNum=1&pageSize=10 | 分页查询文档 |
 | GET | /api/documents/{id} | 按 ID 查询文档详情 |
 | DELETE | /api/documents/{id} | 删除文档（含文件） |
+| POST | /api/documents/{id}/parse | 解析文档并切分 Chunk |
+| GET | /api/documents/{id}/chunks | 查询文档的 Chunk 列表 |
+| GET | /api/documents/{id}/chunks/page?pageNum=1&pageSize=10 | 分页查询文档的 Chunk |
 
 详见 [docs/document-api.md](docs/document-api.md)。
 
@@ -121,7 +124,8 @@ src/main/java/com/shuhuayv/rag/
 ├── controller/
 │   └── KbDocumentController.java
 ├── dto/
-│   └── DocumentUploadResponse.java
+│   ├── DocumentUploadResponse.java
+│   └── DocumentParseResponse.java
 ├── entity/
 │   ├── KbDocument.java
 │   ├── KbChunk.java
@@ -129,11 +133,16 @@ src/main/java/com/shuhuayv/rag/
 ├── exception/
 │   └── GlobalExceptionHandler.java
 ├── mapper/
-│   └── KbDocumentMapper.java
+│   ├── KbDocumentMapper.java
+│   └── KbChunkMapper.java
 └── service/
     ├── KbDocumentService.java
+    ├── DocumentParseService.java
+    ├── ChunkService.java
     └── impl/
-        └── KbDocumentServiceImpl.java
+        ├── KbDocumentServiceImpl.java
+        ├── DocumentParseServiceImpl.java
+        └── ChunkServiceImpl.java
 ```
 
 ## 后续计划
