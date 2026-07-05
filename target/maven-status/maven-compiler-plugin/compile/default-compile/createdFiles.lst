@@ -1,0 +1,14 @@
+com/shuhuayv/rag/service/impl/KbDocumentServiceImpl.class
+com/shuhuayv/rag/AiKnowledgeRagApplication.class
+com/shuhuayv/rag/mapper/KbDocumentMapper.class
+com/shuhuayv/rag/dto/DocumentUploadResponse.class
+com/shuhuayv/rag/entity/KbDocument.class
+com/shuhuayv/rag/service/KbDocumentService.class
+com/shuhuayv/rag/controller/KbDocumentController.class
+com/shuhuayv/rag/dto/DocumentUploadResponse$DocumentUploadResponseBuilder.class
+com/shuhuayv/rag/entity/AiCallLog.class
+com/shuhuayv/rag/common/ApiResponse.class
+com/shuhuayv/rag/common/PageResult.class
+com/shuhuayv/rag/exception/GlobalExceptionHandler.class
+com/shuhuayv/rag/config/OpenApiConfig.class
+com/shuhuayv/rag/entity/KbChunk.class
