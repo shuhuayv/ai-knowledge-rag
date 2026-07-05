@@ -35,8 +35,14 @@ server:
 app:
   upload:
     dir: ${UPLOAD_DIR:uploads}
+  chunk:
+    size: ${CHUNK_SIZE:500}
+    overlap: ${CHUNK_OVERLAP:80}
+  embedding:
+    dimension: ${EMBEDDING_DIMENSION:384}
   qdrant:
+    url: ${QDRANT_URL:http://localhost:6333}
     host: ${QDRANT_HOST:localhost}
     port: ${QDRANT_PORT:6333}
     collection: ${QDRANT_COLLECTION:kb_chunks}
-    dimension: 384
+    dimension: ${EMBEDDING_DIMENSION:384}

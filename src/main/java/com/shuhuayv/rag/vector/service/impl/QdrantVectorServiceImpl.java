@@ -22,6 +22,9 @@ public class QdrantVectorServiceImpl implements QdrantVectorService {
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
 
+    @Value("${app.qdrant.url:}")
+    private String qdrantUrl;
+
     @Value("${app.qdrant.host:localhost}")
     private String qdrantHost;
 
@@ -34,6 +37,9 @@ public class QdrantVectorServiceImpl implements QdrantVectorService {
     }
 
     private String baseUrl() {
+        if (qdrantUrl != null && !qdrantUrl.isBlank()) {
+            return qdrantUrl;
+        }
         return "http://" + qdrantHost + ":" + qdrantPort;
     }
 

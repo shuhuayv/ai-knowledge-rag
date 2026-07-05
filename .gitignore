@@ -1,3 +1,17 @@
 
 # Maven build output
 target/
+
+# Environment variables
+.env
+.env.local
+
+# Uploaded files
+uploads/
+
+# Logs
+logs/
+*.log
+
+# OS files
+.DS_Store

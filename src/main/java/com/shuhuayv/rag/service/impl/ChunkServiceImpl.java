@@ -6,6 +6,7 @@ import com.shuhuayv.rag.entity.KbChunk;
 import com.shuhuayv.rag.mapper.KbChunkMapper;
 import com.shuhuayv.rag.service.ChunkService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -15,8 +16,11 @@ import java.util.List;
 @Service
 public class ChunkServiceImpl extends ServiceImpl<KbChunkMapper, KbChunk> implements ChunkService {
 
-    private static final int CHUNK_MAX_SIZE = 500;
-    private static final int CHUNK_OVERLAP = 80;
+    @Value("${app.chunk.size:500}")
+    private int chunkMaxSize;
+
+    @Value("${app.chunk.overlap:80}")
+    private int chunkOverlap;
 
     @Override
     public List<KbChunk> splitAndSave(Long documentId, String content) {
@@ -58,7 +62,7 @@ public class ChunkServiceImpl extends ServiceImpl<KbChunkMapper, KbChunk> implem
         int chunkIndex = 0;
 
         while (start < totalLength) {
-            int end = Math.min(start + CHUNK_MAX_SIZE, totalLength);
+            int end = Math.min(start + chunkMaxSize, totalLength);
             String chunkText = content.substring(start, end);
 
             KbChunk chunk = new KbChunk();
@@ -70,7 +74,7 @@ public class ChunkServiceImpl extends ServiceImpl<KbChunkMapper, KbChunk> implem
             chunks.add(chunk);
 
             chunkIndex++;
-            start = end - CHUNK_OVERLAP;
+            start = end - chunkOverlap;
 
             if (start >= totalLength) {
                 break;

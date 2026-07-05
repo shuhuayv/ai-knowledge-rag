@@ -2,6 +2,7 @@ package com.shuhuayv.rag.embedding.service.impl;
 
 import com.shuhuayv.rag.embedding.service.EmbeddingService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
@@ -14,7 +15,11 @@ import java.util.List;
 @Service
 public class MockEmbeddingServiceImpl implements EmbeddingService {
 
-    private static final int VECTOR_DIMENSION = 384;
+    private final int vectorDimension;
+
+    public MockEmbeddingServiceImpl(@Value("${app.embedding.dimension:384}") int vectorDimension) {
+        this.vectorDimension = vectorDimension;
+    }
 
     @Override
     public List<Float> embed(String text) {
@@ -23,9 +28,9 @@ public class MockEmbeddingServiceImpl implements EmbeddingService {
         }
 
         byte[] hash = sha256(text);
-        List<Float> vector = new ArrayList<>(VECTOR_DIMENSION);
+        List<Float> vector = new ArrayList<>(vectorDimension);
 
-        for (int i = 0; i < VECTOR_DIMENSION; i++) {
+        for (int i = 0; i < vectorDimension; i++) {
             int byteIndex = i % hash.length;
             float value = ((hash[byteIndex] & 0xFF) - 128.0f) / 128.0f;
             vector.add(value);
@@ -42,8 +47,8 @@ public class MockEmbeddingServiceImpl implements EmbeddingService {
     }
 
     private List<Float> zeroVector() {
-        List<Float> vector = new ArrayList<>(VECTOR_DIMENSION);
-        for (int i = 0; i < VECTOR_DIMENSION; i++) {
+        List<Float> vector = new ArrayList<>(vectorDimension);
+        for (int i = 0; i < vectorDimension; i++) {
             vector.add(0.0f);
         }
         return vector;
