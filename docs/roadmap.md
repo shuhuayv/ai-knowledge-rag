@@ -22,11 +22,13 @@
 - [x] 滑动窗口切分策略（500 字符 + 80 字符 overlap）
 - [x] Chunk 入库（kb_chunk 表）
 
-## 第四阶段
+## 第四阶段（已完成）
 
-- [ ] 接入 Embedding 模型
-- [ ] 生成 Chunk 向量
-- [ ] Qdrant 向量入库
+- [x] Mock Embedding 模块（SHA-256 伪向量，384 维）
+- [x] Qdrant 客户端（RestClient，Collection 创建 + Point Upsert）
+- [x] 向量化业务流程（Chunk → Embedding → Qdrant）
+- [x] kb_vector_record 表记录
+- [x] 文档状态更新（PARSED → INDEXED / FAILED）
 
 ## 第五阶段
 

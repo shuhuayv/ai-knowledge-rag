@@ -51,3 +51,16 @@ mysql -uroot -p < sql/init.sql
 | cost_ms | BIGINT | 耗时（毫秒） |
 | status | VARCHAR(32) | 状态：SUCCESS/FAILED |
 | created_at | DATETIME | 创建时间 |
+
+### kb_vector_record（向量记录表）
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| id | BIGINT | 主键，自增 |
+| document_id | BIGINT | 关联文档 ID |
+| chunk_id | BIGINT | 关联 Chunk ID |
+| qdrant_point_id | VARCHAR(128) | Qdrant Point ID |
+| collection_name | VARCHAR(128) | Qdrant Collection 名称 |
+| vector_dimension | INT | 向量维度 |
+| status | VARCHAR(32) | 状态：INDEXED/FAILED |
+| created_at | DATETIME | 创建时间 |

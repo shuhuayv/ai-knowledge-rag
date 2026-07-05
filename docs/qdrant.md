@@ -52,7 +52,24 @@ docker start qdrant
 
 ## 当前状态
 
-Qdrant 已部署并运行中。本轮不强制接入业务，后续阶段将用于：
-- 文档 Chunk Embedding 向量存储
-- TopK 相似性检索
+Qdrant 已部署并运行中，已接入向量化业务。
+
+### 当前配置
+
+| 配置项 | 值 | 说明 |
+|---|---|---|
+| Collection 名称 | `kb_chunks` | 可在 application.yml 中修改 |
+| 向量维度 | 384 | 当前 Mock Embedding 维度 |
+| 距离度量 | Cosine | 余弦相似度 |
+
+### 已接入功能
+
+- 创建 Collection（自动创建）
+- Upsert Point（写入向量 + Payload）
+- Payload 包含：documentId、chunkId、chunkIndex、content
+
+### 后续阶段
+
+- TopK 相似性检索（向量搜索）
 - RAG 问答上下文召回
+- 替换 Mock Embedding 为真实 Embedding 模型

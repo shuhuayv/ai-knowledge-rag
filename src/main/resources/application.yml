@@ -35,3 +35,8 @@ server:
 app:
   upload:
     dir: ${UPLOAD_DIR:uploads}
+  qdrant:
+    host: ${QDRANT_HOST:localhost}
+    port: ${QDRANT_PORT:6333}
+    collection: ${QDRANT_COLLECTION:kb_chunks}
+    dimension: 384

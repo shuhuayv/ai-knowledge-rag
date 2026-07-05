@@ -94,16 +94,20 @@ http://localhost:8080/v3/api-docs
 | POST | /api/documents/{id}/parse | 解析文档并切分 Chunk |
 | GET | /api/documents/{id}/chunks | 查询文档的 Chunk 列表 |
 | GET | /api/documents/{id}/chunks/page?pageNum=1&pageSize=10 | 分页查询文档的 Chunk |
+| POST | /api/documents/{id}/index | 向量化文档（Mock Embedding + Qdrant） |
+| GET | /api/documents/{id}/vectors | 查询文档的向量记录列表 |
+| GET | /api/documents/{id}/vectors/page?pageNum=1&pageSize=10 | 分页查询文档的向量记录 |
 
 详见 [docs/document-api.md](docs/document-api.md)。
 
 ## 数据库表结构
 
 | 表名 | 说明 |
-|---|---|
+|---|---|---|
 | kb_document | 知识库文档表 |
 | kb_chunk | 文档分块表 |
 | ai_call_log | AI 调用日志表 |
+| kb_vector_record | 向量记录表 |
 
 详见 [docs/database.md](docs/database.md)。
 
@@ -129,20 +133,34 @@ src/main/java/com/shuhuayv/rag/
 ├── entity/
 │   ├── KbDocument.java
 │   ├── KbChunk.java
-│   └── AiCallLog.java
+│   ├── AiCallLog.java
+│   └── KbVectorRecord.java
 ├── exception/
 │   └── GlobalExceptionHandler.java
 ├── mapper/
 │   ├── KbDocumentMapper.java
-│   └── KbChunkMapper.java
+│   ├── KbChunkMapper.java
+│   └── KbVectorRecordMapper.java
+├── embedding/
+│   └── service/
+│       ├── EmbeddingService.java
+│       └── impl/
+│           └── MockEmbeddingServiceImpl.java
+├── vector/
+│   └── service/
+│       ├── QdrantVectorService.java
+│       └── impl/
+│           └── QdrantVectorServiceImpl.java
 └── service/
     ├── KbDocumentService.java
     ├── DocumentParseService.java
     ├── ChunkService.java
+    ├── DocumentIndexService.java
     └── impl/
         ├── KbDocumentServiceImpl.java
         ├── DocumentParseServiceImpl.java
-        └── ChunkServiceImpl.java
+        ├── ChunkServiceImpl.java
+        └── DocumentIndexServiceImpl.java
 ```
 
 ## 后续计划

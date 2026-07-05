@@ -3,11 +3,14 @@ package com.shuhuayv.rag.controller;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.shuhuayv.rag.common.ApiResponse;
 import com.shuhuayv.rag.common.PageResult;
+import com.shuhuayv.rag.dto.DocumentIndexResponse;
 import com.shuhuayv.rag.dto.DocumentParseResponse;
 import com.shuhuayv.rag.dto.DocumentUploadResponse;
 import com.shuhuayv.rag.entity.KbChunk;
 import com.shuhuayv.rag.entity.KbDocument;
+import com.shuhuayv.rag.entity.KbVectorRecord;
 import com.shuhuayv.rag.service.ChunkService;
+import com.shuhuayv.rag.service.DocumentIndexService;
 import com.shuhuayv.rag.service.DocumentParseService;
 import com.shuhuayv.rag.service.KbDocumentService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -26,13 +29,16 @@ public class KbDocumentController {
     private final KbDocumentService kbDocumentService;
     private final DocumentParseService documentParseService;
     private final ChunkService chunkService;
+    private final DocumentIndexService documentIndexService;
 
     public KbDocumentController(KbDocumentService kbDocumentService,
                                 DocumentParseService documentParseService,
-                                ChunkService chunkService) {
+                                ChunkService chunkService,
+                                DocumentIndexService documentIndexService) {
         this.kbDocumentService = kbDocumentService;
         this.documentParseService = documentParseService;
         this.chunkService = chunkService;
+        this.documentIndexService = documentIndexService;
     }
 
     @Operation(summary = "上传文档", description = "上传 TXT 或 PDF 文件到知识库")
@@ -121,6 +127,35 @@ public class KbDocumentController {
         int toIndex = Math.min(fromIndex + (int) pageSize, total);
         List<KbChunk> pageRecords = fromIndex < total ? allChunks.subList(fromIndex, toIndex) : List.of();
         PageResult<KbChunk> result = PageResult.of(pageNum, pageSize, total, pageRecords);
+        return ApiResponse.success(result);
+    }
+
+    @Operation(summary = "向量化文档", description = "将文档的 Chunk 生成 Mock Embedding 并写入 Qdrant 向量数据库")
+    @PostMapping("/{id}/index")
+    public ApiResponse<DocumentIndexResponse> indexDocument(
+            @Parameter(description = "文档 ID", example = "1") @PathVariable Long id) {
+        return ApiResponse.success(documentIndexService.indexDocument(id));
+    }
+
+    @Operation(summary = "查询文档向量记录", description = "获取指定文档的向量记录列表")
+    @GetMapping("/{id}/vectors")
+    public ApiResponse<List<KbVectorRecord>> getDocumentVectors(
+            @Parameter(description = "文档 ID", example = "1") @PathVariable Long id) {
+        return ApiResponse.success(documentIndexService.getVectorRecordsByDocumentId(id));
+    }
+
+    @Operation(summary = "分页查询文档向量记录", description = "分页获取指定文档的向量记录列表")
+    @GetMapping("/{id}/vectors/page")
+    public ApiResponse<PageResult<KbVectorRecord>> pageDocumentVectors(
+            @Parameter(description = "文档 ID", example = "1") @PathVariable Long id,
+            @Parameter(description = "页码", example = "1") @RequestParam(defaultValue = "1") long pageNum,
+            @Parameter(description = "每页条数", example = "10") @RequestParam(defaultValue = "10") long pageSize) {
+        List<KbVectorRecord> allRecords = documentIndexService.getVectorRecordsByDocumentId(id);
+        int total = allRecords.size();
+        int fromIndex = (int) ((pageNum - 1) * pageSize);
+        int toIndex = Math.min(fromIndex + (int) pageSize, total);
+        List<KbVectorRecord> pageRecords = fromIndex < total ? allRecords.subList(fromIndex, toIndex) : List.of();
+        PageResult<KbVectorRecord> result = PageResult.of(pageNum, pageSize, total, pageRecords);
         return ApiResponse.success(result);
     }
 }

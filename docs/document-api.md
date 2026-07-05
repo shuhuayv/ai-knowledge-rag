@@ -131,3 +131,34 @@ GET /api/documents/{id}/chunks/page?pageNum=1&pageSize=10
 |---|---|---|---|
 | pageNum | long | 1 | 页码 |
 | pageSize | long | 10 | 每页条数 |
+
+## 向量化文档
+
+```
+POST /api/documents/{id}/index
+```
+
+功能：将文档 Chunk 生成 Mock Embedding 向量并写入 Qdrant。
+
+前置条件：文档已解析（有 Chunk），Qdrant 已启动。
+
+## 查询文档向量记录
+
+```
+GET /api/documents/{id}/vectors
+```
+
+返回指定文档在 Qdrant 中的向量记录列表。
+
+## 分页查询向量记录
+
+```
+GET /api/documents/{id}/vectors/page?pageNum=1&pageSize=10
+```
+
+参数：
+
+| 参数 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| pageNum | long | 1 | 页码 |
+| pageSize | long | 10 | 每页条数 |

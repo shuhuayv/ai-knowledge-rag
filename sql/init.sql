@@ -43,3 +43,15 @@ CREATE TABLE IF NOT EXISTS ai_call_log (
     status VARCHAR(32) NOT NULL COMMENT '状态：SUCCESS/FAILED',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 调用日志表';
+
+-- 向量记录表
+CREATE TABLE IF NOT EXISTS kb_vector_record (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    document_id BIGINT NOT NULL COMMENT '关联文档 ID',
+    chunk_id BIGINT NOT NULL COMMENT '关联 Chunk ID',
+    qdrant_point_id VARCHAR(128) NOT NULL COMMENT 'Qdrant Point ID',
+    collection_name VARCHAR(128) NOT NULL COMMENT 'Qdrant Collection 名称',
+    vector_dimension INT NOT NULL COMMENT '向量维度',
+    status VARCHAR(32) NOT NULL DEFAULT 'INDEXED' COMMENT '状态：INDEXED/FAILED',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='向量记录表';
