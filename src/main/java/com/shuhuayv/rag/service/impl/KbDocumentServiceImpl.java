@@ -47,11 +47,9 @@ public class KbDocumentServiceImpl extends ServiceImpl<KbDocumentMapper, KbDocum
         }
 
         String storedFilename = UUID.randomUUID().toString() + "_" + originalFilename;
-        Path uploadPath = Paths.get(uploadDir);
+        Path uploadPath = Paths.get(uploadDir).toAbsolutePath().normalize();
         try {
-            if (!Files.exists(uploadPath)) {
-                Files.createDirectories(uploadPath);
-            }
+            Files.createDirectories(uploadPath);
             Path filePath = uploadPath.resolve(storedFilename);
             file.transferTo(filePath.toFile());
 

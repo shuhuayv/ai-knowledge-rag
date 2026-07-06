@@ -56,32 +56,53 @@ public class ChunkServiceImpl extends ServiceImpl<KbChunkMapper, KbChunk> implem
     }
 
     private List<KbChunk> splitText(Long documentId, String content) {
+        // 参数校验
+        if (chunkMaxSize <= 0) {
+            throw new IllegalArgumentException("chunkSize 必须大于 0，当前值: " + chunkMaxSize);
+        }
+
+        int overlap = chunkOverlap;
+        if (overlap < 0) {
+            overlap = 0;
+        }
+        if (overlap >= chunkMaxSize) {
+            overlap = chunkMaxSize / 5;
+        }
+
         List<KbChunk> chunks = new ArrayList<>();
-        int totalLength = content.length();
+        int length = content.length();
         int start = 0;
         int chunkIndex = 0;
+        final int MAX_CHUNK_COUNT = 10000;
 
-        while (start < totalLength) {
-            int end = Math.min(start + chunkMaxSize, totalLength);
-            String chunkText = content.substring(start, end);
+        while (start < length) {
+            if (chunks.size() >= MAX_CHUNK_COUNT) {
+                throw new IllegalStateException(
+                        "Chunk 数量超过上限 " + MAX_CHUNK_COUNT + "，当前文档可能过大，文档 ID: " + documentId);
+            }
 
-            KbChunk chunk = new KbChunk();
-            chunk.setDocumentId(documentId);
-            chunk.setContent(chunkText);
-            chunk.setChunkIndex(chunkIndex);
-            chunk.setTokenCount(chunkText.length());
+            int end = Math.min(start + chunkMaxSize, length);
+            String chunkText = content.substring(start, end).trim();
 
-            chunks.add(chunk);
+            if (!chunkText.isEmpty()) {
+                KbChunk chunk = new KbChunk();
+                chunk.setDocumentId(documentId);
+                chunk.setContent(chunkText);
+                chunk.setChunkIndex(chunkIndex);
+                chunk.setTokenCount(chunkText.length());
+                chunks.add(chunk);
+                chunkIndex++;
+            }
 
-            chunkIndex++;
-            start = end - chunkOverlap;
-
-            if (start >= totalLength) {
+            if (end >= length) {
                 break;
             }
-            if (start < 0) {
-                start = 0;
+
+            int nextStart = end - overlap;
+            if (nextStart <= start) {
+                nextStart = end; // 确保 start 每轮向前推进
             }
+            start = nextStart;
         }
 
         return chunks;

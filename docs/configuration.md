@@ -30,7 +30,7 @@
 
 | 环境变量 | 默认值 | 说明 |
 |------|------|------|
-| UPLOAD_DIR | uploads | 文件上传目录 |
+| UPLOAD_DIR | uploads | 文件上传目录（建议使用绝对路径，如 `/data/ai-knowledge-rag/uploads`） |
 
 ## Chunk 切分
 
