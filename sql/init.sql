@@ -37,8 +37,11 @@ CREATE TABLE IF NOT EXISTS kb_chunk (
 CREATE TABLE IF NOT EXISTS ai_call_log (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     api_type VARCHAR(64) NOT NULL COMMENT 'API 类型（EMBEDDING/CHAT/RERANK）',
+    provider VARCHAR(64) NULL COMMENT 'AI provider',
+    model VARCHAR(128) NULL COMMENT 'AI model',
     request_summary TEXT COMMENT '请求摘要',
     response_summary TEXT COMMENT '响应摘要',
+    error_message TEXT COMMENT '错误信息',
     cost_ms BIGINT DEFAULT 0 COMMENT '耗时（毫秒）',
     status VARCHAR(32) NOT NULL COMMENT '状态：SUCCESS/FAILED',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间'

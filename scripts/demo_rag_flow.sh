@@ -72,8 +72,30 @@ echo "============================================================"
 echo "  RAG 知识库流程演示"
 echo "============================================================"
 echo ""
-echo "  注意: 当前使用 Mock Embedding / Mock AI"
-echo "  不需要配置真实 API Key"
+
+# 检测 AI 模式
+AI_MOCK_ENABLED="${AI_MOCK_ENABLED:-true}"
+AI_PROVIDER="${AI_PROVIDER:-mock}"
+AI_MODEL="${AI_MODEL:-glm-4.7-flash}"
+
+if [ "$AI_MOCK_ENABLED" = "false" ]; then
+    if [ "$AI_PROVIDER" = "zhipu" ]; then
+        echo "  AI 模式: Zhipu GLM Real Chat"
+        echo "  Provider: $AI_PROVIDER"
+        echo "  Model   : $AI_MODEL"
+    else
+        echo "  AI 模式: Real Chat (provider=$AI_PROVIDER)"
+    fi
+    if [ -z "${ZHIPU_API_KEY:-}${AI_API_KEY:-}" ]; then
+        echo "  提示: 未检测到 ZHIPU_API_KEY 或 AI_API_KEY，请设置环境变量"
+        echo "  export ZHIPU_API_KEY='your_api_key'"
+    fi
+else
+    echo "  AI 模式: Mock AI（设置 AI_MOCK_ENABLED=false 可接入真实大模型）"
+fi
+
+echo ""
+echo "  注意: Embedding 仍为 Mock Embedding（dimension=384）"
 echo ""
 echo "  BASE_URL: $BASE_URL"
 echo "  测试文件: $SAMPLE_FILE"
@@ -203,13 +225,28 @@ ASK_BODY=$(echo "$ASK_RESPONSE" | sed '$d')
 
 check_response "RAG 问答" "$ASK_BODY" "$ASK_HTTP_CODE"
 
-ANSWER=$(echo "$ASK_BODY" | json_field "data.answer")
-echo "  answer      : $ANSWER"
+ANSWER=$(echo "$ASK_BODY" | json_field "data.answer" || true)
+ANSWER="${ANSWER:-}"
+PROVIDER=$(echo "$ASK_BODY" | json_field "data.provider" || true)
+PROVIDER="${PROVIDER:-}"
+MODEL_VAL=$(echo "$ASK_BODY" | json_field "data.model" || true)
+MODEL_VAL="${MODEL_VAL:-${AI_MODEL:-unknown}}"
+COST_MS=$(echo "$ASK_BODY" | json_field "data.costMs" || true)
+COST_MS="${COST_MS:-0}"
+echo "  provider    : ${PROVIDER}"
+echo "  model       : ${MODEL_VAL}"
+echo "  costMs      : ${COST_MS} ms"
+echo "  answer      : ${ANSWER}"
 echo ""
 echo "  references  :"
 echo "$ASK_BODY" | json_field "data.references" | json_pretty
 echo ""
-echo "  [OK] RAG 问答完成（Mock AI）"
+
+if [ "${PROVIDER}" = "mock" ] || [ "${PROVIDER}" = "null" ] || [ -z "${PROVIDER}" ]; then
+    echo "  [OK] RAG 问答完成（Mock AI）"
+else
+    echo "  [OK] RAG 问答完成（${PROVIDER} / ${MODEL_VAL}）"
+fi
 echo ""
 
 # ============================================================
@@ -219,15 +256,22 @@ echo "============================================================"
 echo "  演示总结"
 echo "============================================================"
 echo ""
-echo "  documentId  : $DOCUMENT_ID"
-echo "  chunkCount  : $CHUNK_COUNT"
-echo "  vectorCount : $VECTOR_COUNT"
+echo "  documentId  : ${DOCUMENT_ID}"
+echo "  chunkCount  : ${CHUNK_COUNT}"
+echo "  vectorCount : ${VECTOR_COUNT}"
+echo "  provider    : ${PROVIDER}"
+echo "  model       : ${MODEL_VAL}"
 echo "  search      : 已检索相关文档片段"
-echo "  answer      : $ANSWER"
+echo "  answer      : ${ANSWER}"
 echo "  references  : 已返回引用来源"
 echo ""
-echo "  注意: 当前使用 Mock Embedding / Mock AI"
-echo "  向量为随机生成（dimension=384），仅供参考流程验证"
+
+if [ "$AI_MOCK_ENABLED" = "false" ]; then
+    echo "  AI 模式: 真实 Chat API (${PROVIDER} / ${MODEL_VAL})"
+else
+    echo "  AI 模式: Mock AI"
+fi
+echo "  Embedding: Mock Embedding（dimension=384）"
 echo ""
 echo "============================================================"
 echo "  RAG 流程演示完成！"

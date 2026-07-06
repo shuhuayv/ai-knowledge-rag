@@ -45,31 +45,29 @@ source .env
 
 详细配置说明见 [docs/configuration.md](docs/configuration.md)。
 
-### 2. 启动基础设施
-
-```bash
-# 启动 MySQL、Redis（Docker 方式）
-# 启动 Qdrant
-bash scripts/start_qdrant.sh
-```
-
-### 3. 初始化数据库
-
-```bash
-bash scripts/init_db.sh
-```
-
-### 4. 启动项目
+### 2. Mock 模式启动（默认，无需 API Key）
 
 ```bash
 mvn spring-boot:run
 ```
 
-也可以临时指定密码：
+### 3. 智谱 GLM 真实 Chat 模式启动
 
 ```bash
-DB_PASSWORD=your_local_mysql_password mvn spring-boot:run
+export AI_MOCK_ENABLED=false
+export AI_PROVIDER=zhipu
+export ZHIPU_API_KEY='your_api_key'
+export AI_API_BASE_URL='https://open.bigmodel.cn/api/paas/v4'
+export AI_MODEL='glm-4.7-flash'
+
+mvn spring-boot:run
 ```
+
+> 可选推理模型：`export AI_MODEL='glm-z1-flash'`
+>
+> 注意：不要提交真实 API Key。当前只接真实 Chat API，Embedding 仍为 Mock Embedding。
+> 真实 Chat API 采用 OpenAI-compatible 接口，后续可切换阿里百炼、DeepSeek、火山方舟等兼容 OpenAI 的 provider。
+> 如果模型名不可用，可在智谱开放平台查看当前可用模型，并通过 AI_MODEL 替换。
 
 ## Swagger 接口文档
 
@@ -223,6 +221,7 @@ src/main/java/com/shuhuayv/rag/
     ├── DocumentIndexService.java
     ├── SearchService.java
     ├── AiAnswerService.java
+    ├── ChatModelService.java
     ├── PromptBuildService.java
     ├── RagService.java
 └── impl/
@@ -232,6 +231,8 @@ src/main/java/com/shuhuayv/rag/
         ├── DocumentIndexServiceImpl.java
         ├── SearchServiceImpl.java
         ├── MockAiAnswerServiceImpl.java
+        ├── MockChatModelServiceImpl.java
+        ├── OpenAiCompatibleChatModelServiceImpl.java
         ├── PromptBuildServiceImpl.java
         └── RagServiceImpl.java
 ```
@@ -252,6 +253,6 @@ src/main/java/com/shuhuayv/rag/
 | TopK 检索 | 已完成 | POST /api/search |
 | Mock RAG 回答 | 已完成 | POST /api/rag/ask |
 | AI 调用日志 | 已完成 | ai_call_log 表 |
+| 真实大模型 | 已完成 | 智谱 GLM Chat API（OpenAI-compatible） |
 | 真实 Embedding | 未完成 | 后续替换真实 API |
-| 真实大模型 | 未完成 | 后续接入大模型 API |
 | 多轮会话 | 未完成 | 后续支持对话历史 |
