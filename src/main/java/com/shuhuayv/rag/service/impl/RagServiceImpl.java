@@ -6,7 +6,7 @@ import com.shuhuayv.rag.dto.SearchResponse;
 import com.shuhuayv.rag.dto.SearchResultItem;
 import com.shuhuayv.rag.entity.AiCallLog;
 import com.shuhuayv.rag.mapper.AiCallLogMapper;
-import com.shuhuayv.rag.service.AiAnswerService;
+import com.shuhuayv.rag.service.ChatModelService;
 import com.shuhuayv.rag.service.PromptBuildService;
 import com.shuhuayv.rag.service.RagService;
 import com.shuhuayv.rag.service.SearchService;
@@ -22,16 +22,16 @@ public class RagServiceImpl implements RagService {
 
     private final SearchService searchService;
     private final PromptBuildService promptBuildService;
-    private final AiAnswerService aiAnswerService;
+    private final ChatModelService chatModelService;
     private final AiCallLogMapper aiCallLogMapper;
 
     public RagServiceImpl(SearchService searchService,
                           PromptBuildService promptBuildService,
-                          AiAnswerService aiAnswerService,
+                          ChatModelService chatModelService,
                           AiCallLogMapper aiCallLogMapper) {
         this.searchService = searchService;
         this.promptBuildService = promptBuildService;
-        this.aiAnswerService = aiAnswerService;
+        this.chatModelService = chatModelService;
         this.aiCallLogMapper = aiCallLogMapper;
     }
 
@@ -39,6 +39,7 @@ public class RagServiceImpl implements RagService {
     public RagAskResponse ask(String question, int topK) {
         long startTime = System.currentTimeMillis();
         String status = "SUCCESS";
+        String errorMessage = null;
         String answer = null;
         String prompt = null;
 
@@ -50,7 +51,7 @@ public class RagServiceImpl implements RagService {
             }
 
             prompt = promptBuildService.buildPrompt(question, searchResults);
-            answer = aiAnswerService.generateAnswer(question, searchResults);
+            answer = chatModelService.generateAnswer(prompt);
 
             List<RagReferenceItem> references = searchResults.stream()
                     .map(r -> RagReferenceItem.builder()
@@ -65,9 +66,10 @@ public class RagServiceImpl implements RagService {
             String promptPreview = prompt.length() > 500 ? prompt.substring(0, 500) : prompt;
             long costMs = System.currentTimeMillis() - startTime;
 
-            saveAiCallLog(question, topK, answer, costMs, status);
+            saveAiCallLog(question, topK, answer, costMs, status, null);
 
-            log.info("RAG ask completed, question={}, topK={}, referenceCount={}, costMs={}",
+            log.info("RAG ask completed, provider={}, model={}, question={}, topK={}, referenceCount={}, costMs={}",
+                    chatModelService.getProvider(), chatModelService.getModel(),
                     question, topK, references.size(), costMs);
 
             return RagAskResponse.builder()
@@ -78,25 +80,37 @@ public class RagServiceImpl implements RagService {
                     .references(references)
                     .promptPreview(promptPreview)
                     .costMs(costMs)
+                    .provider(chatModelService.getProvider())
+                    .model(chatModelService.getModel())
                     .build();
 
         } catch (Exception e) {
             long costMs = System.currentTimeMillis() - startTime;
             status = "FAILED";
-            saveAiCallLog(question, topK, e.getMessage(), costMs, status);
-            log.error("RAG ask failed, question={}", question, e);
+            errorMessage = e.getMessage();
+            String summary = answer != null ? answer : errorMessage;
+            saveAiCallLog(question, topK, summary, costMs, status, errorMessage);
+            log.error("RAG ask failed, provider={}, model={}, question={}",
+                    chatModelService.getProvider(), chatModelService.getModel(), question, e);
             throw new RuntimeException("RAG 问答失败: " + e.getMessage(), e);
         }
     }
 
-    private void saveAiCallLog(String question, int topK, String responseSummary, long costMs, String status) {
+    private void saveAiCallLog(String question, int topK, String responseSummary,
+                               long costMs, String status, String errorMessage) {
         try {
             AiCallLog log = new AiCallLog();
             log.setApiType("RAG_ASK");
+            log.setProvider(chatModelService.getProvider());
+            log.setModel(chatModelService.getModel());
             log.setRequestSummary("question=" + question + ", topK=" + topK);
             String summary = responseSummary != null && responseSummary.length() > 500
                     ? responseSummary.substring(0, 500) : responseSummary;
             log.setResponseSummary(summary);
+            if (errorMessage != null && errorMessage.length() > 500) {
+                errorMessage = errorMessage.substring(0, 500);
+            }
+            log.setErrorMessage(errorMessage);
             log.setCostMs(costMs);
             log.setStatus(status);
             aiCallLogMapper.insert(log);

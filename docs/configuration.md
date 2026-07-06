@@ -45,6 +45,48 @@
 |------|------|------|
 | EMBEDDING_DIMENSION | 384 | 向量维度 |
 
+> 当前 Embedding 仍为 Mock Embedding，未接入真实 Embedding API。
+
+## AI Chat API
+
+| 环境变量 | 默认值 | 说明 |
+|------|------|------|
+| AI_MOCK_ENABLED | true | 是否使用 Mock AI（true=Mock, false=真实 API） |
+| AI_PROVIDER | mock | AI Provider 标识（mock / zhipu / deepseek 等） |
+| AI_API_KEY | (空) | AI API Key（也可用 ZHIPU_API_KEY） |
+| AI_API_BASE_URL | https://open.bigmodel.cn/api/paas/v4 | API 基础地址（OpenAI-compatible） |
+| AI_MODEL | glm-4.7-flash | 模型名称 |
+| AI_TIMEOUT_SECONDS | 30 | API 超时时间（秒） |
+| AI_MAX_TOKENS | 1024 | 最大生成 Token 数 |
+| AI_TEMPERATURE | 0.3 | 生成温度（0-1） |
+
+### Mock 模式（默认）
+
+```bash
+# 无需额外配置
+mvn spring-boot:run
+```
+
+### 智谱 GLM 真实 Chat 模式
+
+```bash
+export AI_MOCK_ENABLED=false
+export AI_PROVIDER=zhipu
+export ZHIPU_API_KEY='your_api_key'
+export AI_API_BASE_URL='https://open.bigmodel.cn/api/paas/v4'
+export AI_MODEL='glm-4.7-flash'
+
+mvn spring-boot:run
+```
+
+> 可选推理模型：`export AI_MODEL='glm-z1-flash'`
+>
+> 注意：
+> 1. 不要提交真实 API Key 到代码仓库。
+> 2. 当前只接真实 Chat API，Embedding 仍为 Mock Embedding。
+> 3. 真实 Chat API 采用 OpenAI-compatible 接口，后续可切换阿里百炼、DeepSeek、火山方舟等兼容 OpenAI 的 provider。
+> 4. 如果模型名不可用，可在智谱开放平台查看当前可用模型，并通过 AI_MODEL 替换。
+
 ## 快速配置
 
 参考 `.env.example` 文件：

@@ -31,4 +31,10 @@ public class RagAskResponse {
 
     @Schema(description = "问答耗时（毫秒）", example = "456")
     private long costMs;
+
+    @Schema(description = "AI Provider 标识", example = "mock")
+    private String provider;
+
+    @Schema(description = "AI 模型名称", example = "glm-4.7-flash")
+    private String model;
 }

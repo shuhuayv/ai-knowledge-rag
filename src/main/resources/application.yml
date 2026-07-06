@@ -46,3 +46,13 @@ app:
     port: ${QDRANT_PORT:6333}
     collection: ${QDRANT_COLLECTION:kb_chunks}
     dimension: ${EMBEDDING_DIMENSION:384}
+
+ai:
+  mock-enabled: ${AI_MOCK_ENABLED:true}
+  provider: ${AI_PROVIDER:mock}
+  api-key: ${AI_API_KEY:${ZHIPU_API_KEY:}}
+  api-base-url: ${AI_API_BASE_URL:https://open.bigmodel.cn/api/paas/v4}
+  model: ${AI_MODEL:glm-4.7-flash}
+  timeout-seconds: ${AI_TIMEOUT_SECONDS:30}
+  max-tokens: ${AI_MAX_TOKENS:1024}
+  temperature: ${AI_TEMPERATURE:0.3}

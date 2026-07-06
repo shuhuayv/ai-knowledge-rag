@@ -16,9 +16,15 @@ public class AiCallLog {
 
     private String apiType;
 
+    private String provider;
+
+    private String model;
+
     private String requestSummary;
 
     private String responseSummary;
+
+    private String errorMessage;
 
     private Long costMs;
 
