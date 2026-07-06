@@ -87,6 +87,24 @@ mvn spring-boot:run
 > 3. 真实 Chat API 采用 OpenAI-compatible 接口，后续可切换阿里百炼、DeepSeek、火山方舟等兼容 OpenAI 的 provider。
 > 4. 如果模型名不可用，可在智谱开放平台查看当前可用模型，并通过 AI_MODEL 替换。
 
+## Demo 数据清理
+
+`scripts/reset_demo_data.sh` 用于清理本地 demo 产生的数据，清空 MySQL 表、uploads 文件和 Qdrant collection。
+
+```bash
+export DB_NAME=ai_knowledge_rag
+export DB_USERNAME=ai_dev
+export DB_PASSWORD='your_db_password'
+export QDRANT_URL=http://localhost:6333
+export QDRANT_COLLECTION=kb_chunks
+export UPLOAD_DIR="$(pwd)/uploads"
+
+./scripts/reset_demo_data.sh
+./scripts/demo_rag_flow.sh
+```
+
+> 注意：仅用于本地 demo 环境，不建议在生产环境执行。会清空 RAG demo 相关 MySQL 表、uploads 文件和 Qdrant collection。
+
 ## 快速配置
 
 参考 `.env.example` 文件：

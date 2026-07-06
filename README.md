@@ -131,7 +131,25 @@ source scripts/test_rag_flow.sh
 |------|------|
 | `scripts/init_db.sh` | 初始化数据库 |
 | `scripts/start_qdrant.sh` | 启动 Qdrant |
+| `scripts/reset_demo_data.sh` | 清理 demo 数据（MySQL + Qdrant + uploads） |
 | `scripts/test_rag_flow.sh` | 完整 RAG 流程测试 |
+| `scripts/demo_rag_flow.sh` | RAG 流程演示（upload -> parse -> index -> search -> chat） |
+
+### 演示前清理数据
+
+```bash
+export DB_NAME=ai_knowledge_rag
+export DB_USERNAME=ai_dev
+export DB_PASSWORD='your_db_password'
+export QDRANT_URL=http://localhost:6333
+export QDRANT_COLLECTION=kb_chunks
+export UPLOAD_DIR="$(pwd)/uploads"
+
+./scripts/reset_demo_data.sh
+./scripts/demo_rag_flow.sh
+```
+
+> 注意：`reset_demo_data.sh` 仅用于本地 demo 环境，不建议在生产环境执行。会清空 RAG demo 相关 MySQL 表、uploads 文件和 Qdrant collection。
 
 ## 样例文档
 
