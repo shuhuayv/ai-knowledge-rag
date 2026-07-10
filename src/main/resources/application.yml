@@ -3,7 +3,7 @@ spring:
     name: ai-knowledge-rag
 
   datasource:
-    url: jdbc:mysql://localhost:3306/${DB_NAME:ai_knowledge_rag}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:ai_knowledge_rag}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
     username: ${DB_USERNAME:ai_dev}
     password: ${DB_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -39,14 +39,24 @@ app:
     size: ${CHUNK_SIZE:500}
     overlap: ${CHUNK_OVERLAP:80}
   embedding:
+    # Mock Embedding 维度（SHA-256 伪向量）。真实模式不再使用此值，仅 Mock 模式生效。
     dimension: ${EMBEDDING_DIMENSION:384}
   qdrant:
     url: ${QDRANT_URL:http://localhost:6333}
     host: ${QDRANT_HOST:localhost}
     port: ${QDRANT_PORT:6333}
+    # Legacy Collection 名称：Mock 模式仍使用 kb_chunks，保留旧 Mock 数据（384 维）。
     collection: ${QDRANT_COLLECTION:kb_chunks}
+    # 注：以下 dimension 为 legacy 配置，标注为不再作为真实维度来源。
+    # 真实模式维度由 EmbeddingService.dimensions()（zhipu=1024）决定。
     dimension: ${EMBEDDING_DIMENSION:384}
 
+# ============================================================
+# AI Embedding 配置（双模式：mock / zhipu）
+# - 默认 mock：无需 API Key，384 维 SHA-256 伪向量。
+# - zhipu：真实智谱 Embedding API（embedding-3，1024 维）。
+# - API Key 仅来自环境变量 AI_API_KEY / ZHIPU_API_KEY，绝不硬编码。
+# ============================================================
 ai:
   mock-enabled: ${AI_MOCK_ENABLED:true}
   provider: ${AI_PROVIDER:mock}
@@ -56,3 +66,24 @@ ai:
   timeout-seconds: ${AI_TIMEOUT_SECONDS:30}
   max-tokens: ${AI_MAX_TOKENS:1024}
   temperature: ${AI_TEMPERATURE:0.3}
+
+  embedding:
+    # 选择 Embedding 模式：mock（默认，无 Key）/ zhipu（真实 API）
+    provider: ${AI_EMBEDDING_PROVIDER:mock}
+    model: ${AI_EMBEDDING_MODEL:embedding-3}
+    dimensions: ${AI_EMBEDDING_DIMENSIONS:1024}
+    endpoint: ${AI_EMBEDDING_ENDPOINT:https://open.bigmodel.cn/api/paas/v4/embeddings}
+    # API Key 仅来自环境变量，绝不写死。缺 Key 且 provider=zhipu 时明确失败。
+    api-key: ${AI_API_KEY:${ZHIPU_API_KEY:}}
+    batch-size: ${AI_EMBEDDING_BATCH_SIZE:16}
+    connect-timeout-seconds: ${AI_EMBEDDING_CONNECT_TIMEOUT_SECONDS:5}
+    read-timeout-seconds: ${AI_EMBEDDING_READ_TIMEOUT_SECONDS:30}
+    max-retries: ${AI_EMBEDDING_MAX_RETRIES:2}
+    # 默认 false：缺 Key 时明确失败，不静默降级到 Mock。
+    fallback-enabled: ${AI_EMBEDDING_FALLBACK_ENABLED:false}
+
+# RAG 检索配置
+rag:
+  retrieval:
+    # 相似度最低阈值（Cosine）。score >= minScore 才返回。默认 0.0（不过滤）。
+    min-score: ${RAG_RETRIEVAL_MIN_SCORE:0.0}

@@ -19,3 +19,6 @@ logs/
 # IDE
 .vscode/
 .idea/
+
+# Local Trae workspace
+.trae/

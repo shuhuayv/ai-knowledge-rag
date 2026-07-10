@@ -94,8 +94,17 @@ else
     echo "  AI 模式: Mock AI（设置 AI_MOCK_ENABLED=false 可接入真实大模型）"
 fi
 
+# 检测 Embedding 模式（新增：兼容 AI_EMBEDDING_PROVIDER）
+AI_EMBEDDING_PROVIDER="${AI_EMBEDDING_PROVIDER:-mock}"
+
 echo ""
-echo "  注意: Embedding 仍为 Mock Embedding（dimension=384）"
+if [ "$AI_EMBEDDING_PROVIDER" = "zhipu" ]; then
+    echo "  Embedding 模式: Zhipu 真实 Embedding（embedding-3, 1024 维）"
+    echo "  说明: 使用真实语义向量；Collection 隔离为 kb_chunks_zhipu_embedding_3_1024_v1"
+    echo "  提示: 真实模式完整演示请用 scripts/demo_real_embedding_flow.sh"
+else
+    echo "  Embedding 模式: Mock Embedding（dimension=384，无真实语义）"
+fi
 echo ""
 echo "  BASE_URL: $BASE_URL"
 echo "  测试文件: $SAMPLE_FILE"
@@ -271,7 +280,11 @@ if [ "$AI_MOCK_ENABLED" = "false" ]; then
 else
     echo "  AI 模式: Mock AI"
 fi
-echo "  Embedding: Mock Embedding（dimension=384）"
+if [ "$AI_EMBEDDING_PROVIDER" = "zhipu" ]; then
+    echo "  Embedding: Zhipu 真实 Embedding（embedding-3, 1024 维）"
+else
+    echo "  Embedding: Mock Embedding（dimension=384）"
+fi
 echo ""
 echo "============================================================"
 echo "  RAG 流程演示完成！"

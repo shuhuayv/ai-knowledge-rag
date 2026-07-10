@@ -35,6 +35,25 @@ public class KbDocument {
     @Schema(description = "备注", example = "企业知识库核心文档")
     private String remark;
 
+    // ===== 真实 Embedding 元数据（索引透明性增强） =====
+    @Schema(description = "向量化使用的 Embedding Provider（mock / zhipu）", example = "zhipu")
+    private String embeddingProvider;
+
+    @Schema(description = "向量化使用的 Embedding 模型（embedding-3 / mock）", example = "embedding-3")
+    private String embeddingModel;
+
+    @Schema(description = "向量维度（384=mock, 1024=zhipu）", example = "1024")
+    private Integer embeddingDimensions;
+
+    @Schema(description = "向量所在 Qdrant Collection 名称", example = "kb_chunks_zhipu_embedding_3_1024_v1")
+    private String vectorCollection;
+
+    @Schema(description = "索引版本（用于确定性 pointId 与重索引识别）", example = "v1")
+    private String indexVersion;
+
+    @Schema(description = "最近一次成功索引时间")
+    private LocalDateTime indexedAt;
+
     @Schema(description = "创建时间")
     private LocalDateTime createdAt;
 

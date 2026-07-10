@@ -32,6 +32,19 @@ public class KbVectorRecord {
     @Schema(description = "向量维度", example = "384")
     private Integer vectorDimension;
 
+    // ===== 真实 Embedding 元数据（索引透明性增强） =====
+    @Schema(description = "Embedding Provider（mock / zhipu）", example = "zhipu")
+    private String embeddingProvider;
+
+    @Schema(description = "Embedding 模型（embedding-3 / mock）", example = "embedding-3")
+    private String embeddingModel;
+
+    @Schema(description = "Embedding 维度（384=mock, 1024=zhipu）", example = "1024")
+    private Integer embeddingDimensions;
+
+    @Schema(description = "索引版本（与 pointId 关联，用于幂等/重索引识别）", example = "v1")
+    private String indexVersion;
+
     @Schema(description = "状态：INDEXED/FAILED", example = "INDEXED")
     private String status;
 

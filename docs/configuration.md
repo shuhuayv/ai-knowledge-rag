@@ -39,13 +39,64 @@
 | CHUNK_SIZE | 500 | 每个 Chunk 最大字符数 |
 | CHUNK_OVERLAP | 80 | 相邻 Chunk 重叠字符数 |
 
-## Embedding
+## Embedding（双模式：mock / zhipu）
 
 | 环境变量 | 默认值 | 说明 |
 |------|------|------|
-| EMBEDDING_DIMENSION | 384 | 向量维度 |
+| EMBEDDING_DIMENSION | 384 | Mock 模式向量维度（legacy，仅 Mock 生效） |
+| AI_EMBEDDING_PROVIDER | mock | Embedding 模式：`mock`（无 Key）/ `zhipu`（真实 API） |
+| AI_EMBEDDING_MODEL | embedding-3 | 真实 Embedding 模型名 |
+| AI_EMBEDDING_DIMENSIONS | 1024 | 真实 Embedding 维度 |
+| AI_EMBEDDING_ENDPOINT | https://open.bigmodel.cn/api/paas/v4/embeddings | Embedding API 端点 |
+| AI_EMBEDDING_API_KEY | (空) | 真实 API Key（也可用 ZHIPU_API_KEY；仅环境变量，绝不写代码） |
+| AI_EMBEDDING_BATCH_SIZE | 16 | 批量大小（单批上限 64） |
+| AI_EMBEDDING_CONNECT_TIMEOUT_SECONDS | 5 | 连接超时 |
+| AI_EMBEDDING_READ_TIMEOUT_SECONDS | 30 | 读取超时 |
+| AI_EMBEDDING_MAX_RETRIES | 2 | 对 429/5xx 的指数退避重试次数 |
+| AI_EMBEDDING_FALLBACK_ENABLED | false | 缺 Key 时是否降级到 Mock（默认 false：明确失败，不静默降级） |
 
-> 当前 Embedding 仍为 Mock Embedding，未接入真实 Embedding API。
+> **Mock 模式（默认）**：SHA-256 伪向量，384 维，无需 Key，写入 legacy Collection `kb_chunks`。
+> **Real 模式（zhipu）**：智谱 `embedding-3`，1024 维，写入隔离 Collection `kb_chunks_zhipu_embedding_3_1024_v1`。
+> 切换 provider 后需对文档重新索引；两种模式物理隔离，旧 Mock 数据保留。
+
+### Mock 模式（默认）
+
+```bash
+# 无需额外配置
+mvn spring-boot:run
+```
+
+### 智谱 GLM 真实 Chat 模式
+
+```bash
+export AI_MOCK_ENABLED=false
+export AI_PROVIDER=zhipu
+export ZHIPU_API_KEY='<your-local-api-key>'
+export AI_API_BASE_URL='https://open.bigmodel.cn/api/paas/v4'
+export AI_MODEL='glm-4.7-flash'
+
+mvn spring-boot:run
+```
+
+> 可选推理模型：`export AI_MODEL='glm-z1-flash'`
+>
+> 注意：
+> 1. 不要提交真实 API Key 到代码仓库。所有 Key 仅来自环境变量 `ZHIPU_API_KEY` / `AI_API_KEY`。
+> 2. 真实 Chat 与真实 Embedding **解耦**，可分别开关。
+> 3. 真实 Chat API 采用 OpenAI-compatible 接口，可切换阿里百炼、DeepSeek、火山方舟等兼容 OpenAI 的 provider。
+> 4. 如果模型名不可用，可在智谱开放平台查看当前可用模型，并通过 AI_MODEL 替换。
+
+### 智谱真实 Embedding 模式
+
+```bash
+export AI_EMBEDDING_PROVIDER=zhipu
+export ZHIPU_API_KEY='<your-local-api-key>'
+mvn spring-boot:run
+```
+
+> `fallback-enabled` 默认 `false`：缺 Key 时启动即失败（IllegalArgumentException），不静默降级。
+> 状态查询：`GET /api/embedding/status` 仅返回 `apiKeyConfigured: true/false`，绝不返回 Key 本身。
+> 详见 [docs/REAL_EMBEDDING.md](REAL_EMBEDDING.md)。
 
 ## AI Chat API
 
