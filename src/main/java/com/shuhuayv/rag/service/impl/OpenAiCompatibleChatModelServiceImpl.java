@@ -11,8 +11,12 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
 import java.time.Duration;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * OpenAI-compatible Chat Completions API 实现。
@@ -30,15 +34,20 @@ public class OpenAiCompatibleChatModelServiceImpl implements ChatModelService {
     private final String apiBaseUrl;
     private final double temperature;
     private final int maxTokens;
+    private final String thinkingType;
+    private final int maxRetries;
+    private final Semaphore chatPermit = new Semaphore(1, true);
 
     public OpenAiCompatibleChatModelServiceImpl(
             @Value("${ai.api-key:${ZHIPU_API_KEY:}}") String apiKey,
             @Value("${ai.provider:zhipu}") String provider,
-            @Value("${ai.model:glm-4.7-flash}") String model,
+            @Value("${ai.model:glm-4.5-air}") String model,
             @Value("${ai.api-base-url:https://open.bigmodel.cn/api/paas/v4}") String apiBaseUrl,
             @Value("${ai.temperature:0.3}") double temperature,
-            @Value("${ai.max-tokens:1024}") int maxTokens,
-            @Value("${ai.timeout-seconds:30}") int timeoutSeconds) {
+            @Value("${ai.max-tokens:4096}") int maxTokens,
+            @Value("${ai.thinking-type:disabled}") String thinkingType,
+            @Value("${ai.chat-max-retries:3}") int maxRetries,
+            @Value("${ai.timeout-seconds:90}") int timeoutSeconds) {
 
         if (apiKey == null || apiKey.isBlank()) {
             throw new IllegalArgumentException(
@@ -50,6 +59,8 @@ public class OpenAiCompatibleChatModelServiceImpl implements ChatModelService {
         this.apiBaseUrl = apiBaseUrl.endsWith("/") ? apiBaseUrl.substring(0, apiBaseUrl.length() - 1) : apiBaseUrl;
         this.temperature = temperature;
         this.maxTokens = maxTokens;
+        this.thinkingType = "enabled".equalsIgnoreCase(thinkingType) ? "enabled" : "disabled";
+        this.maxRetries = Math.max(0, Math.min(maxRetries, 5));
 
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(Duration.ofSeconds(timeoutSeconds));
@@ -68,34 +79,99 @@ public class OpenAiCompatibleChatModelServiceImpl implements ChatModelService {
 
     @Override
     public String generateAnswer(String prompt) {
-        long startTime = System.currentTimeMillis();
-
-        Map<String, Object> requestBody = buildRequestBody(prompt);
-
+        boolean acquired = false;
         try {
-            String response = restClient.post()
-                    .uri("/chat/completions")
-                    .body(requestBody)
-                    .retrieve()
-                    .onStatus(HttpStatusCode::isError, (req, resp) -> {
-                        String errorBody = new String(resp.getBody().readAllBytes());
-                        log.error("AI API error, status={}, body={}", resp.getStatusCode(), errorBody);
-                        throw new RuntimeException("AI API 调用失败，HTTP " + resp.getStatusCode() + ": " + errorBody);
-                    })
-                    .body(String.class);
+            // 本地只允许一个 Chat 请求占用智谱并发额度，避免用户连续点击触发 1302。
+            chatPermit.acquire();
+            acquired = true;
+            return generateAnswerWithRetry(prompt);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("等待 Chat 请求队列时被中断", e);
+        } finally {
+            if (acquired) {
+                chatPermit.release();
+            }
+        }
+    }
 
-            long costMs = System.currentTimeMillis() - startTime;
-            String answer = extractContent(response);
-            log.info("AI Chat completed, provider={}, model={}, costMs={}, answerLength={}",
-                    provider, model, costMs, answer.length());
-            return answer;
+    private String generateAnswerWithRetry(String prompt) {
+        Map<String, Object> requestBody = buildRequestBody(prompt);
+        RuntimeException lastError = null;
 
-        } catch (RuntimeException e) {
-            throw e;
-        } catch (Exception e) {
-            long costMs = System.currentTimeMillis() - startTime;
-            log.error("AI API call failed, provider={}, model={}, costMs={}", provider, model, costMs, e);
-            throw new RuntimeException("AI API 调用失败: " + e.getMessage(), e);
+        for (int attempt = 1; attempt <= maxRetries + 1; attempt++) {
+            long startTime = System.currentTimeMillis();
+            try {
+                String response = restClient.post()
+                        .uri("/chat/completions")
+                        .body(requestBody)
+                        .retrieve()
+                        .onStatus(HttpStatusCode::isError, (req, resp) -> {
+                            String errorBody = new String(resp.getBody().readAllBytes());
+                            log.error("AI API error, status={}, body={}", resp.getStatusCode(), errorBody);
+                            throw new RuntimeException("AI API 调用失败，HTTP " + resp.getStatusCode() + ": " + errorBody);
+                        })
+                        .body(String.class);
+
+                long costMs = System.currentTimeMillis() - startTime;
+                String answer = extractContent(response);
+                log.info("AI Chat completed, provider={}, model={}, attempt={}, costMs={}, answerLength={}",
+                        provider, model, attempt, costMs, answer.length());
+                return answer;
+
+            } catch (RuntimeException e) {
+                lastError = e;
+                if (!isRateLimitError(e) || attempt > maxRetries) {
+                    throw e;
+                }
+                long delayMs = retryDelayMs(attempt);
+                log.warn("AI Chat rate limited, provider={}, model={}, attempt={}/{}, retryAfterMs={}",
+                        provider, model, attempt, maxRetries + 1, delayMs);
+                sleepBeforeRetry(delayMs);
+            } catch (Exception e) {
+                long costMs = System.currentTimeMillis() - startTime;
+                log.error("AI API call failed, provider={}, model={}, costMs={}", provider, model, costMs, e);
+                throw new RuntimeException("AI API 调用失败: " + e.getMessage(), e);
+            }
+        }
+        throw lastError != null ? lastError : new RuntimeException("AI API 调用失败");
+    }
+
+    private boolean isRateLimitError(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null) {
+                String normalized = message.toLowerCase(Locale.ROOT);
+                if (normalized.contains("429")
+                        || normalized.contains("1302")
+                        || normalized.contains("1305")
+                        || normalized.contains("too_many_requests")
+                        || normalized.contains("速率限制")
+                        || normalized.contains("请求频率")) {
+                    return true;
+                }
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    private long retryDelayMs(int attempt) {
+        long baseMs = switch (attempt) {
+            case 1 -> 5_000L;
+            case 2 -> 12_000L;
+            default -> 25_000L;
+        };
+        return baseMs + ThreadLocalRandom.current().nextLong(1_000L, 3_001L);
+    }
+
+    private void sleepBeforeRetry(long delayMs) {
+        try {
+            Thread.sleep(delayMs);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("等待 AI 限流重试时被中断", e);
         }
     }
 
@@ -121,12 +197,18 @@ public class OpenAiCompatibleChatModelServiceImpl implements ChatModelService {
                 )
         );
 
-        return Map.of(
-                "model", model,
-                "messages", messages,
-                "temperature", temperature,
-                "max_tokens", maxTokens
-        );
+        Map<String, Object> requestBody = new LinkedHashMap<>();
+        requestBody.put("model", model);
+        requestBody.put("messages", messages);
+        requestBody.put("temperature", temperature);
+        requestBody.put("max_tokens", maxTokens);
+
+        // GLM-4.7 默认会进行深度思考。RAG 演示优先稳定输出最终答案，
+        // 避免推理内容耗尽 max_tokens 后 message.content 为空。
+        if ("zhipu".equalsIgnoreCase(provider)) {
+            requestBody.put("thinking", Map.of("type", thinkingType));
+        }
+        return requestBody;
     }
 
     @SuppressWarnings("unchecked")

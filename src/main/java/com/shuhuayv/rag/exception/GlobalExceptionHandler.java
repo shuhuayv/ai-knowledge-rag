@@ -42,6 +42,15 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public ApiResponse<Void> handleRuntimeException(RuntimeException e) {
         log.error("Internal server error", e);
+        String detail = e.getMessage() == null ? "" : e.getMessage();
+        if (detail.contains("1302") || detail.contains("1305") || detail.contains("TOO_MANY_REQUESTS")) {
+            return ApiResponse.fail(500,
+                    "智谱 Chat 当前达到速率限制；后端自动退避重试后仍未恢复，请等待 30-60 秒再试。");
+        }
+        if (detail.contains("timed out") || detail.contains("Read timed out")) {
+            return ApiResponse.fail(500,
+                    "智谱 Chat 响应超时；检索与索引正常，请稍后重试问答。");
+        }
         return ApiResponse.fail(500, "服务器内部错误");
     }
 
