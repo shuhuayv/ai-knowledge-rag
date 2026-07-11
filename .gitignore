@@ -22,3 +22,15 @@ logs/
 
 # Local Trae workspace
 .trae/
+
+# Local run artifacts (PID, logs)
+.demo-run/
+*.pid
+
+# Local database backups / recovery logs
+*.sql.bak
+backups/
+
+# Evaluation output (may contain secrets / private docs)
+evaluation/results/
+evaluation/output/
