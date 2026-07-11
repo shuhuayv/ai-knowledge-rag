@@ -1,311 +1,177 @@
 # ai-knowledge-rag
 
-AI 知识库问答系统 - 基于 Spring AI + RAG（检索增强生成）的企业级知识库。
+企业级 AI 知识库问答系统 —— 基于 **Spring Boot + RAG（检索增强生成）**。检索层使用真实智谱 `embedding-3`（1024 维）向量 + Qdrant；生成层 Chat 使用 OpenAI-compatible 接口（默认智谱 `glm-4.5-air`）。
+
+> 说明：本项目**未使用 Spring AI**，Chat / Embedding 调用均通过 **Spring RestClient** 直接对接 OpenAI-compatible 协议，可平滑切换到阿里百炼、DeepSeek、火山方舟等兼容 provider。
+
+## 真实能力边界（诚实口径）
+
+- **检索层 = 真实语义检索**：真实 `embedding-3` 1024 维向量，写入独立 Qdrant Collection `kb_chunks_zhipu_embedding_3_1024_v1`，与 Mock（384 维 `kb_chunks`）物理隔离。
+- **生成层 Chat = 真实智谱**（本地 Demo 经 Keychain 注入 Key，默认 `glm-4.5-air`、`thinking` 默认关闭、超时 90s、对 429/1302/1305 自动退避重试）。
+- **不是** 训练大模型、不是自研向量库、不做线上高并发承诺；本地 Demo 无登录 / 权限。
+- 真实 Key 的端到端冒烟需本机注入 Key 后运行，README 只描述已落地的代码与构建/测试能力。
 
 ## 技术栈
 
-- Java 21
-- Spring Boot 4.1
-- Maven
-- MySQL
-- Redis
-- MyBatis-Plus
-- Lombok
-- Validation
+- Java 21 + Spring Boot 4.1
+- Maven 3.9
+- Spring RestClient（OpenAI-compatible Chat / Embedding 调用，非 Spring AI）
+- MySQL（业务元数据） + Redis（缓存） + Qdrant（向量库）
+- MyBatis-Plus + Lombok + Jakarta Validation
 - Springdoc OpenAPI / Swagger UI
-- Qdrant（向量数据库）
+- PDFBox（PDF 解析）
 
-## 已完成功能
+## 系统架构
 
-- Spring Boot 基础项目
-- MySQL 数据库（ai_knowledge_rag）
-- Redis 基础配置
-- MyBatis-Plus 集成
-- 文档上传（TXT/PDF）
-- 文档列表查询
-- 文档分页查询
-- 文档详情查询
-- 文档删除（含文件删除）
-- Controller / Service / Mapper 三层架构
-- 统一返回结构 ApiResponse
-- 通用分页返回对象 PageResult
-- 全局异常处理
-- 参数校验
-- Swagger / OpenAPI 中文注解
+```
+上传 → 解析(PDFBox) → Chunk(滑动窗口) → 向量化(EmbeddingService: Mock/Real)
+                                                            ↓
+                                                       Qdrant(Collection 隔离)
+                                                            ↑
+问答: 检索(SearchService, TopK 语义) → 拼 Prompt → Chat(ChatModelService, 限流退避) → 引用来源
+```
+
+- `EmbeddingService`：抽象 + `MockEmbeddingServiceImpl`（SHA-256 伪向量 384 维）/ `ZhipuEmbeddingServiceImpl`（真实 embedding-3 1024 维，批量 + 指数退避重试）。
+- `CollectionNameResolver`：按 Mock/Real 解析不同 Collection 名，避免维度冲突。
+- `ChatModelService`：`OpenAiCompatibleChatModelServiceImpl`（Semaphore 并发=1 + 退避重试 + thinking 开关）。
+- `EmbeddingStatusController`：仅返回 `apiKeyConfigured` 布尔，绝不泄露 Key。
+
+## 核心业务流程
+
+1. 文档上传（TXT/PDF）→ 解析 → Chunk 切分
+2. 向量化（Mock 或真实 Embedding）→ 写入 Qdrant
+3. 语义检索：`POST /api/search` 返回 TopK
+4. RAG 问答：`POST /api/rag/ask` → 检索 + Chat 生成 + 引用来源（references 含 documentId / chunkId / score）
+
+## 本地依赖
+
+- JDK 21+、Maven 3.9+
+- Docker：mysql8（3307→3306）、redis7（6379）、qdrant（6333）
+- 真实模式需本机 Keychain 中 `ai_dev`（DB）与 `ai-knowledge-rag-zhipu`（智谱 Key）
+
+## 环境变量
+
+| 变量 | 默认 | 说明 |
+|------|------|------|
+| `AI_PROVIDER` | `mock` | chat provider（真实用 `zhipu`） |
+| `AI_MODEL` | `glm-4.5-air` | chat 模型 |
+| `AI_API_KEY` / `ZHIPU_API_KEY` | 空 | 智谱 Key（不提交） |
+| `AI_THINKING_TYPE` | `disabled` | 关闭 GLM 深度思考，避免耗尽 max_tokens |
+| `AI_TIMEOUT_SECONDS` | `90` | chat 超时 |
+| `AI_CHAT_MAX_RETRIES` | `3` | 限流退避重试次数 |
+| `AI_EMBEDDING_PROVIDER` | `mock` | embedding provider（真实用 `zhipu`） |
+| `AI_EMBEDDING_MODEL` | `embedding-3` | 真实 embedding 模型 |
+| `AI_EMBEDDING_DIMENSIONS` | `1024` | 维度 |
+| `AI_EMBEDDING_FALLBACK_ENABLED` | `false` | 缺 Key 时明确失败，不静默降级 |
+| `DB_HOST/DB_PORT/DB_NAME/DB_USERNAME/DB_PASSWORD` | 127.0.0.1/3307/ai_knowledge_rag/ai_dev | 数据库 |
 
 ## 本地启动
 
-### 1. 配置环境变量
+### 1. 配置（从 Keychain 读取，无需手写明文）
 
 ```bash
+# 复制示例并查看（不要填真实密码）
 cp .env.example .env
-# 编辑 .env，填入 DB_PASSWORD
-source .env
+# 真实启动推荐用仓库脚本（自动从 Keychain 读密）：
+bash scripts/start_rag_local.sh      # 前台日志在 .demo-run/logs
+bash scripts/stop_rag_local.sh
 ```
 
-详细配置说明见 [docs/configuration.md](docs/configuration.md)。
-
-### 2. Mock 模式启动（默认，无需 API Key）
+### 2. Mock 模式（默认，无需 Key）
 
 ```bash
 mvn spring-boot:run
 ```
 
-### 3. 智谱 GLM 真实 Chat 模式启动
+### 3. 真实 Chat（glm-4.5-air）
 
 ```bash
-export AI_MOCK_ENABLED=false
-export AI_PROVIDER=zhipu
-export ZHIPU_API_KEY='<your-local-api-key>'
-export AI_API_BASE_URL='https://open.bigmodel.cn/api/paas/v4'
-export AI_MODEL='glm-4.7-flash'
-
+export AI_MOCK_ENABLED=false AI_PROVIDER=zhipu
+export ZHIPU_API_KEY='<从 Keychain 读取，绝不提交>'
+export AI_MODEL='glm-4.5-air' AI_THINKING_TYPE=disabled AI_TIMEOUT_SECONDS=90
 mvn spring-boot:run
 ```
 
-> 可选推理模型：`export AI_MODEL='glm-z1-flash'`
->
-> 注意：不要提交真实 API Key。真实 Chat API 采用 OpenAI-compatible 接口，可切换阿里百炼、DeepSeek、火山方舟等兼容 OpenAI 的 provider。
-> 如果模型名不可用，可在智谱开放平台查看当前可用模型，并通过 AI_MODEL 替换。
-
-### 4. 真实 Embedding 模式启动（智谱 embedding-3）
-
-Embedding 与 Chat **解耦**，可单独开启真实 Embedding（默认仍用 Mock，无 Key）：
+### 4. 真实 Embedding（embedding-3, 1024 维）
 
 ```bash
-export AI_EMBEDDING_PROVIDER=zhipu
-export ZHIPU_API_KEY='<your-local-api-key>'   # 仅本地，绝不提交
-# 可选覆盖：AI_EMBEDDING_MODEL / AI_EMBEDDING_DIMENSIONS / AI_EMBEDDING_BATCH_SIZE 等
+export AI_EMBEDDING_PROVIDER=zhipu AI_EMBEDDING_MODEL=embedding-3 AI_EMBEDDING_DIMENSIONS=1024
+export AI_EMBEDDING_FALLBACK_ENABLED=false ZHIPU_API_KEY='<从 Keychain 读取>'
 mvn spring-boot:run
 ```
 
-- `fallback-enabled` 默认 `false`：缺 Key 时**明确失败**，不静默降级到 Mock。
-- 真实模式使用独立 Qdrant Collection `kb_chunks_zhipu_embedding_3_1024_v1`，与 Mock（384 维 `kb_chunks`）物理隔离。
-- 完整设计、批量/重试、检索透明性、安全边界见 [docs/REAL_EMBEDDING.md](docs/REAL_EMBEDDING.md)。
-- 检索质量评估见 [docs/retrieval-evaluation.md](docs/retrieval-evaluation.md) 与 `scripts/evaluate_real_embedding.sh`。
-
-## Swagger 接口文档
-
-项目启动后访问：
-
-```
-http://localhost:8080/swagger-ui.html
-```
-
-OpenAPI JSON 描述文件：
-
-```
-http://localhost:8080/v3/api-docs
-```
-
-## 接口列表
-
-### 文档接口
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| POST | /api/documents/upload | 上传文档（TXT/PDF） |
-| GET | /api/documents | 查询文档列表 |
-| GET | /api/documents/page?pageNum=1&pageSize=10 | 分页查询文档 |
-| GET | /api/documents/{id} | 按 ID 查询文档详情 |
-| DELETE | /api/documents/{id} | 删除文档（含文件） |
-| POST | /api/documents/{id}/parse | 解析文档并切分 Chunk |
-| GET | /api/documents/{id}/chunks | 查询文档的 Chunk 列表 |
-| GET | /api/documents/{id}/chunks/page?pageNum=1&pageSize=10 | 分页查询文档的 Chunk |
-| POST | /api/documents/{id}/index | 向量化文档（Mock Embedding + Qdrant） |
-| GET | /api/documents/{id}/vectors | 查询文档的向量记录列表 |
-| GET | /api/documents/{id}/vectors/page?pageNum=1&pageSize=10 | 分页查询文档的向量记录 |
-
-### 检索接口
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| POST | /api/search | 语义检索，返回 TopK 最相关 Chunk |
-
-详见 [docs/search.md](docs/search.md)。
-
-### RAG 问答接口
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| POST | /api/rag/ask | RAG 问答（检索 + AI 生成回答 + 引用来源） |
-
-详见 [docs/rag.md](docs/rag.md)。
-
-### Embedding 状态接口
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| GET | /api/embedding/status | 查询当前 Embedding 配置（provider/model/dimensions/mode/collectionName/fallbackEnabled/apiKeyConfigured） |
-
-> 安全：状态接口**绝不返回 API Key 本身/长度/前缀/后缀**，仅返回 `apiKeyConfigured: true/false`。
-
-## RAG 流程测试
+## 测试命令
 
 ```bash
-source scripts/test_rag_flow.sh
+mvn -B test          # 当前 68 个单元测试通过（MockWebServer / Qdrant 本地实例），BUILD SUCCESS
+mvn -B package -DskipTests
 ```
 
-详见 [docs/demo-script.md](docs/demo-script.md)。
+测试覆盖：Embedding 双模式、CollectionNameResolver、Qdrant 向量读写、检索、RAG 问答、Embedding 状态接口、限流退避（见 `src/test`）。
 
-## 一键脚本
+## CI
 
-| 脚本 | 说明 |
+GitHub Actions：`.github/workflows/ci.yml`（push/PR main，Java 21，Maven 缓存，`mvn -B test` + `mvn -B package -DskipTests`）。测试配置不读取生产秘密，不调用真实 API。
+
+## API / 页面入口
+
+| 入口 | 地址 |
 |------|------|
-| `scripts/init_db.sh` | 初始化数据库 |
-| `scripts/start_qdrant.sh` | 启动 Qdrant |
-| `scripts/reset_demo_data.sh` | 清理 demo 数据（MySQL + Qdrant + uploads） |
-| `scripts/test_rag_flow.sh` | 完整 RAG 流程测试 |
-| `scripts/demo_rag_flow.sh` | RAG 流程演示（upload -> parse -> index -> search -> chat，兼容 `AI_EMBEDDING_PROVIDER`） |
-| `scripts/check_embedding_config.sh` | 预检 MySQL/Redis/Qdrant 可达性与 Embedding 状态（仅输出 apiKeyConfigured 布尔） |
-| `scripts/demo_real_embedding_flow.sh` | 真实 Embedding 流程演示（upload -> parse -> index -> search -> ask，打印 references 与 score） |
-| `scripts/evaluate_real_embedding.sh` | 真实 Embedding 检索质量评估（hit@1/hit@3/MRR/无关问题最高分，实时计算） |
+| Swagger UI | http://localhost:8080/swagger-ui.html |
+| OpenAPI JSON | http://localhost:8080/v3/api-docs |
+| 文档接口 | `/api/documents/*` |
+| 检索 | `POST /api/search` |
+| RAG 问答 | `POST /api/rag/ask` |
+| Embedding 状态 | `GET /api/embedding/status` |
 
-### 演示前清理数据
+详见 [docs/rag.md](docs/rag.md)、[docs/search.md](docs/search.md)、[docs/REAL_EMBEDDING.md](docs/REAL_EMBEDDING.md)。
+
+## 演示步骤
 
 ```bash
-export DB_NAME=ai_knowledge_rag
-export DB_USERNAME=ai_dev
-export DB_PASSWORD='your_db_password'
-export QDRANT_URL=http://localhost:6333
-export QDRANT_COLLECTION=kb_chunks
-export UPLOAD_DIR="$(pwd)/uploads"
-
-./scripts/reset_demo_data.sh
-./scripts/demo_rag_flow.sh
+bash scripts/reset_demo_data.sh --yes
+bash scripts/demo_real_embedding_flow.sh     # upload→parse→index→search→ask，打印 references 与 score
 ```
 
-> 注意：`reset_demo_data.sh` 仅用于本地 demo 环境，不建议在生产环境执行。会清空 RAG demo 相关 MySQL 表、uploads 文件和 Qdrant collection。
+样例文档：`samples/company_policy.txt`。
 
-## 样例文档
+## 已知限制
 
-`samples/company_policy.txt` — 虚拟公司制度文档，用于上传测试。
+- 多轮会话历史暂未支持。
+- 真实 Chat 受智谱速率限制，已做退避重试但仍可能短时不可用。
+- 评估指标见下方「检索评估」，生成层指标以本机真实运行结果为准。
+
+## 面试亮点
+
+- Mock / Real Embedding 双模式 + Collection 物理隔离，维度安全。
+- Chat 限流退避（429/1302/1305）+ 并发 Semaphore + thinking 关闭，稳定输出。
+- 检索透明性：candidate/returned 计数、Embedding 元数据、无结果固定文案、状态接口不泄露 Key。
+- 68 个单测 + CI 绿。
+
+## 故障排查
+
+- 启动报 `Embedding` 维度冲突：确认真实模式 Collection `kb_chunks_zhipu_embedding_3_1024_v1` 维度为 1024；`bash scripts/check_embedding_config.sh` 预检。
+- Chat 空回答：旧 GLM 默认开启思考会耗尽 max_tokens；本项目 `AI_THINKING_TYPE=disabled` 已规避。
+- 端口占用：RAG 用 8080；确认 mysql8(3307)、redis7(6379)、qdrant(6333) 已启动。
+
+## 检索评估（运行方式 + 指标）
+
+运行方式（真实模式，指标待第四天真实运行后回填）：
+
+```bash
+# 需先完成文档解析与向量化索引（真实 embedding-3）
+export AI_EMBEDDING_PROVIDER=zhipu ZHIPU_API_KEY='<Keychain>'
+bash scripts/evaluate_real_embedding.sh     # 计算 hit@1/hit@3/hit@5/MRR/无结果率/延迟
+```
+
+指标（**第四天真实运行后回填，以下为占位**）：
+
+| 数据集 | 样本数 | Hit@1 | Hit@3 | Hit@5 | MRR | 无结果率 | P95 延迟 |
+|--------|--------|-------|-------|-------|-----|----------|----------|
+| 待建（10–20 条，对应真实已索引文档） | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+
+详见 [docs/retrieval-evaluation.md](docs/retrieval-evaluation.md)。
 
 ## 文档索引
 
-| 文档 | 说明 |
-|------|------|
-| [docs/configuration.md](docs/configuration.md) | 环境变量配置说明 |
-| [docs/runbook.md](docs/runbook.md) | 从零启动项目完整步骤 |
-| [docs/demo-script.md](docs/demo-script.md) | 面试演示脚本 |
-| [docs/database.md](docs/database.md) | 数据库表结构 |
-| [docs/document-api.md](docs/document-api.md) | 文档管理接口 |
-| [docs/parser.md](docs/parser.md) | 文档解析模块 |
-| [docs/vector-index.md](docs/vector-index.md) | 向量化索引模块 |
-| [docs/search.md](docs/search.md) | 语义检索接口 |
-| [docs/rag.md](docs/rag.md) | RAG 问答模块 |
-| [docs/qdrant.md](docs/qdrant.md) | Qdrant 部署说明 |
-| [docs/REAL_EMBEDDING.md](docs/REAL_EMBEDDING.md) | 真实智谱 Embedding 接入与检索透明性 |
-| [docs/retrieval-evaluation.md](docs/retrieval-evaluation.md) | 检索质量评估方法与指标 |
-| [docs/roadmap.md](docs/roadmap.md) | 开发路线图 |
-
-## 数据库表结构
-
-| 表名 | 说明 |
-|---|---|---|
-| kb_document | 知识库文档表 |
-| kb_chunk | 文档分块表 |
-| ai_call_log | AI 调用日志表 |
-| kb_vector_record | 向量记录表 |
-
-详见 [docs/database.md](docs/database.md)。
-
-## Qdrant 向量数据库
-
-Qdrant 已通过 Docker 部署，启动命令见 [docs/qdrant.md](docs/qdrant.md)。
-
-## 项目结构
-
-```
-src/main/java/com/shuhuayv/rag/
-├── AiKnowledgeRagApplication.java
-├── common/
-│   ├── ApiResponse.java
-│   └── PageResult.java
-├── config/
-│   └── OpenApiConfig.java
-├── controller/
-│   ├── KbDocumentController.java
-│   ├── SearchController.java
-│   ├── RagController.java
-│   └── EmbeddingStatusController.java
-├── dto/
-│   ├── DocumentUploadResponse.java
-│   ├── DocumentParseResponse.java
-│   ├── DocumentIndexResponse.java
-│   ├── SearchRequest.java
-│   ├── SearchResultItem.java
-│   ├── SearchResponse.java
-│   ├── RagAskRequest.java
-│   ├── RagReferenceItem.java
-│   └── RagAskResponse.java
-├── entity/
-│   ├── KbDocument.java
-│   ├── KbChunk.java
-│   ├── AiCallLog.java
-│   └── KbVectorRecord.java
-├── exception/
-│   └── GlobalExceptionHandler.java
-├── mapper/
-│   ├── KbDocumentMapper.java
-│   ├── KbChunkMapper.java
-│   ├── KbVectorRecordMapper.java
-│   └── AiCallLogMapper.java
-├── embedding/
-│   ├── config/
-│   │   └── EmbeddingConfiguration.java
-│   └── service/
-│       ├── EmbeddingMode.java
-│       ├── EmbeddingService.java
-│       └── impl/
-│           ├── MockEmbeddingServiceImpl.java
-│           └── ZhipuEmbeddingServiceImpl.java
-├── vector/
-│   └── service/
-│       ├── CollectionNameResolver.java
-│       ├── QdrantVectorService.java
-│       └── impl/
-│           └── QdrantVectorServiceImpl.java
-└── service/
-    ├── KbDocumentService.java
-    ├── DocumentParseService.java
-    ├── ChunkService.java
-    ├── DocumentIndexService.java
-    ├── SearchService.java
-    ├── AiAnswerService.java
-    ├── ChatModelService.java
-    ├── PromptBuildService.java
-    ├── RagService.java
-└── impl/
-        ├── KbDocumentServiceImpl.java
-        ├── DocumentParseServiceImpl.java
-        ├── ChunkServiceImpl.java
-        ├── DocumentIndexServiceImpl.java
-        ├── SearchServiceImpl.java
-        ├── MockAiAnswerServiceImpl.java
-        ├── MockChatModelServiceImpl.java
-        ├── OpenAiCompatibleChatModelServiceImpl.java
-        ├── PromptBuildServiceImpl.java
-        └── RagServiceImpl.java
-```
-
-## 后续计划
-
-详见 [docs/roadmap.md](docs/roadmap.md)。
-
-## 当前状态
-
-| 模块 | 状态 | 说明 |
-|------|------|------|
-| 文档上传 | 已完成 | TXT/PDF 上传入库 |
-| 文档解析 | 已完成 | PDFBox 解析 PDF |
-| Chunk 切分 | 已完成 | 滑动窗口 500 字符 + 80 重叠 |
-| Mock Embedding | 已完成 | SHA-256 伪向量，384 维 |
-| Qdrant 入库 | 已完成 | Cosine 相似度 |
-| TopK 检索 | 已完成 | POST /api/search |
-| Mock RAG 回答 | 已完成 | POST /api/rag/ask |
-| AI 调用日志 | 已完成 | ai_call_log 表 |
-| 真实大模型 | 已完成 | 智谱 GLM Chat API（OpenAI-compatible） |
-| 真实 Embedding | 已完成 | 智谱 embedding-3（1024 维），Mock/Real 双模式，Collection 隔离 |
-| 检索透明性 | 已完成 | candidate/returned 计数、Embedding 元数据、无结果固定文案、状态接口 |
-| 多轮会话 | 未完成 | 后续支持对话历史 |
+[docs/configuration.md](docs/configuration.md) · [docs/runbook.md](docs/runbook.md) · [docs/demo-script.md](docs/demo-script.md) · [docs/database.md](docs/database.md) · [docs/parser.md](docs/parser.md) · [docs/vector-index.md](docs/vector-index.md) · [docs/search.md](docs/search.md) · [docs/rag.md](docs/rag.md) · [docs/qdrant.md](docs/qdrant.md) · [docs/REAL_EMBEDDING.md](docs/REAL_EMBEDDING.md) · [docs/retrieval-evaluation.md](docs/retrieval-evaluation.md) · [docs/roadmap.md](docs/roadmap.md)
