@@ -24,6 +24,18 @@ public class DocumentIndexResponse {
     @Schema(description = "Qdrant Collection 名称", example = "kb_chunks")
     private String collectionName;
 
+    @Schema(description = "Embedding Provider（mock / zhipu）", example = "zhipu")
+    private String embeddingProvider;
+
+    @Schema(description = "Embedding 模型（embedding-3 / mock）", example = "embedding-3")
+    private String embeddingModel;
+
+    @Schema(description = "Embedding 维度（384=mock, 1024=zhipu）", example = "1024")
+    private Integer embeddingDimensions;
+
+    @Schema(description = "索引版本", example = "v1")
+    private String indexVersion;
+
     @Schema(description = "处理消息", example = "文档向量化完成，共写入 15 条向量")
     private String message;
 }

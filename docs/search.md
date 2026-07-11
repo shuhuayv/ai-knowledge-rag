@@ -3,6 +3,7 @@
 ## 概述
 
 语义检索接口基于向量相似度，从 Qdrant 向量数据库中检索与用户查询最相关的 TopK 个文档 Chunk。
+支持 **Mock / 真实双模式 Embedding**（维度与 Collection 由 `EmbeddingService` + `CollectionNameResolver` 决定）。
 
 > 语义检索是 RAG 问答的前置步骤。检索结果会作为上下文传递给 AI 模型生成回答。详见 [docs/rag.md](rag.md)。
 
@@ -11,15 +12,19 @@
 ```
 用户查询 "什么是RAG？"
        ↓
-EmbeddingService.embed(query) → 384 维 Mock 向量
+EmbeddingService.embed(query) → 向量（Mock=384 / zhipu=1024）
        ↓
-QdrantVectorService.search(collection="kb_chunks", vector, topK)
+CollectionNameResolver 解析 Collection（Mock= kb_chunks / Real= kb_chunks_zhipu_embedding_3_1024_v1）
        ↓
-Qdrant HTTP API: POST /collections/kb_chunks/points/search
+QdrantVectorService.search(collection, vector, topK)
+       ↓
+Qdrant HTTP API: POST /collections/{collection}/points/search
+       ↓
+过滤（score >= rag.retrieval.min-score，默认 0.0 不过滤）
        ↓
 返回 TopK 个最相似 Chunk（documentId, chunkId, content, score）
        ↓
-组装 SearchResponse
+组装 SearchResponse（含 candidate / returned 计数）
 ```
 
 ## 接口
@@ -62,7 +67,9 @@ POST /api/search
         "collectionName": "kb_chunks"
       }
     ],
-    "costMs": 123
+    "costMs": 123,
+    "retrievalCandidateCount": 5,
+    "retrievalReturnedCount": 3
   }
 }
 ```
@@ -80,13 +87,18 @@ POST /api/search
 | results[].score | Double | 相似度分数（Cosine） |
 | results[].collectionName | String | Qdrant Collection 名称 |
 | costMs | long | 检索耗时（毫秒） |
+| retrievalCandidateCount | int | min-score 过滤前候选数量 |
+| retrievalReturnedCount | int | min-score 过滤后返回数量 |
+
+> `rag.retrieval.min-score`（默认 0.0）控制过滤阈值：仅 `score >= minScore` 的结果返回；
+> `retrievalCandidateCount` / `retrievalReturnedCount` 用于透明诊断"为何返回变少"。
 
 ## 当前限制
 
-1. **Mock Embedding**：当前使用 SHA-256 伪向量，检索结果无真实语义，仅为工程闭环验证
-2. **无结果处理**：如果 Qdrant 中无数据或匹配度低，返回空列表（不报错）
-3. **不支持过滤**：不支持按文档 ID、文件类型等条件过滤
-4. **不支持重排序**：无 Rerank 步骤
+1. **Mock Embedding 无真实语义**：仅 Mock 模式检索结果无真实语义，仅为工程闭环验证；真实评估请用 `zhipu` 模式。
+2. **无结果处理**：若 Qdrant 无数据或全被 min-score 过滤，返回空列表（RAG 层会给出固定引导文案，不调用 Chat）。
+3. **不支持过滤**：不支持按文档 ID、文件类型等条件过滤。
+4. **不支持重排序**：无 Rerank 步骤（score 为向量相似度，非答案正确率）。
 
 ## 后续扩展
 

@@ -56,7 +56,7 @@ mvn spring-boot:run
 ```bash
 export AI_MOCK_ENABLED=false
 export AI_PROVIDER=zhipu
-export ZHIPU_API_KEY='your_api_key'
+export ZHIPU_API_KEY='<your-local-api-key>'
 export AI_API_BASE_URL='https://open.bigmodel.cn/api/paas/v4'
 export AI_MODEL='glm-4.7-flash'
 
@@ -65,9 +65,24 @@ mvn spring-boot:run
 
 > 可选推理模型：`export AI_MODEL='glm-z1-flash'`
 >
-> 注意：不要提交真实 API Key。当前只接真实 Chat API，Embedding 仍为 Mock Embedding。
-> 真实 Chat API 采用 OpenAI-compatible 接口，后续可切换阿里百炼、DeepSeek、火山方舟等兼容 OpenAI 的 provider。
+> 注意：不要提交真实 API Key。真实 Chat API 采用 OpenAI-compatible 接口，可切换阿里百炼、DeepSeek、火山方舟等兼容 OpenAI 的 provider。
 > 如果模型名不可用，可在智谱开放平台查看当前可用模型，并通过 AI_MODEL 替换。
+
+### 4. 真实 Embedding 模式启动（智谱 embedding-3）
+
+Embedding 与 Chat **解耦**，可单独开启真实 Embedding（默认仍用 Mock，无 Key）：
+
+```bash
+export AI_EMBEDDING_PROVIDER=zhipu
+export ZHIPU_API_KEY='<your-local-api-key>'   # 仅本地，绝不提交
+# 可选覆盖：AI_EMBEDDING_MODEL / AI_EMBEDDING_DIMENSIONS / AI_EMBEDDING_BATCH_SIZE 等
+mvn spring-boot:run
+```
+
+- `fallback-enabled` 默认 `false`：缺 Key 时**明确失败**，不静默降级到 Mock。
+- 真实模式使用独立 Qdrant Collection `kb_chunks_zhipu_embedding_3_1024_v1`，与 Mock（384 维 `kb_chunks`）物理隔离。
+- 完整设计、批量/重试、检索透明性、安全边界见 [docs/REAL_EMBEDDING.md](docs/REAL_EMBEDDING.md)。
+- 检索质量评估见 [docs/retrieval-evaluation.md](docs/retrieval-evaluation.md) 与 `scripts/evaluate_real_embedding.sh`。
 
 ## Swagger 接口文档
 
@@ -117,6 +132,14 @@ http://localhost:8080/v3/api-docs
 
 详见 [docs/rag.md](docs/rag.md)。
 
+### Embedding 状态接口
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | /api/embedding/status | 查询当前 Embedding 配置（provider/model/dimensions/mode/collectionName/fallbackEnabled/apiKeyConfigured） |
+
+> 安全：状态接口**绝不返回 API Key 本身/长度/前缀/后缀**，仅返回 `apiKeyConfigured: true/false`。
+
 ## RAG 流程测试
 
 ```bash
@@ -133,7 +156,10 @@ source scripts/test_rag_flow.sh
 | `scripts/start_qdrant.sh` | 启动 Qdrant |
 | `scripts/reset_demo_data.sh` | 清理 demo 数据（MySQL + Qdrant + uploads） |
 | `scripts/test_rag_flow.sh` | 完整 RAG 流程测试 |
-| `scripts/demo_rag_flow.sh` | RAG 流程演示（upload -> parse -> index -> search -> chat） |
+| `scripts/demo_rag_flow.sh` | RAG 流程演示（upload -> parse -> index -> search -> chat，兼容 `AI_EMBEDDING_PROVIDER`） |
+| `scripts/check_embedding_config.sh` | 预检 MySQL/Redis/Qdrant 可达性与 Embedding 状态（仅输出 apiKeyConfigured 布尔） |
+| `scripts/demo_real_embedding_flow.sh` | 真实 Embedding 流程演示（upload -> parse -> index -> search -> ask，打印 references 与 score） |
+| `scripts/evaluate_real_embedding.sh` | 真实 Embedding 检索质量评估（hit@1/hit@3/MRR/无关问题最高分，实时计算） |
 
 ### 演示前清理数据
 
@@ -169,6 +195,8 @@ export UPLOAD_DIR="$(pwd)/uploads"
 | [docs/search.md](docs/search.md) | 语义检索接口 |
 | [docs/rag.md](docs/rag.md) | RAG 问答模块 |
 | [docs/qdrant.md](docs/qdrant.md) | Qdrant 部署说明 |
+| [docs/REAL_EMBEDDING.md](docs/REAL_EMBEDDING.md) | 真实智谱 Embedding 接入与检索透明性 |
+| [docs/retrieval-evaluation.md](docs/retrieval-evaluation.md) | 检索质量评估方法与指标 |
 | [docs/roadmap.md](docs/roadmap.md) | 开发路线图 |
 
 ## 数据库表结构
@@ -199,7 +227,8 @@ src/main/java/com/shuhuayv/rag/
 ├── controller/
 │   ├── KbDocumentController.java
 │   ├── SearchController.java
-│   └── RagController.java
+│   ├── RagController.java
+│   └── EmbeddingStatusController.java
 ├── dto/
 │   ├── DocumentUploadResponse.java
 │   ├── DocumentParseResponse.java
@@ -223,12 +252,17 @@ src/main/java/com/shuhuayv/rag/
 │   ├── KbVectorRecordMapper.java
 │   └── AiCallLogMapper.java
 ├── embedding/
+│   ├── config/
+│   │   └── EmbeddingConfiguration.java
 │   └── service/
+│       ├── EmbeddingMode.java
 │       ├── EmbeddingService.java
 │       └── impl/
-│           └── MockEmbeddingServiceImpl.java
+│           ├── MockEmbeddingServiceImpl.java
+│           └── ZhipuEmbeddingServiceImpl.java
 ├── vector/
 │   └── service/
+│       ├── CollectionNameResolver.java
 │       ├── QdrantVectorService.java
 │       └── impl/
 │           └── QdrantVectorServiceImpl.java
@@ -272,5 +306,6 @@ src/main/java/com/shuhuayv/rag/
 | Mock RAG 回答 | 已完成 | POST /api/rag/ask |
 | AI 调用日志 | 已完成 | ai_call_log 表 |
 | 真实大模型 | 已完成 | 智谱 GLM Chat API（OpenAI-compatible） |
-| 真实 Embedding | 未完成 | 后续替换真实 API |
+| 真实 Embedding | 已完成 | 智谱 embedding-3（1024 维），Mock/Real 双模式，Collection 隔离 |
+| 检索透明性 | 已完成 | candidate/returned 计数、Embedding 元数据、无结果固定文案、状态接口 |
 | 多轮会话 | 未完成 | 后续支持对话历史 |

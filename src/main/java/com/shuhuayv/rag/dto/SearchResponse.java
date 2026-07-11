@@ -25,4 +25,10 @@ public class SearchResponse {
 
     @Schema(description = "检索耗时（毫秒）", example = "123")
     private long costMs;
+
+    @Schema(description = "过滤前候选结果数量（min-score 过滤前）", example = "5")
+    private int retrievalCandidateCount;
+
+    @Schema(description = "过滤后实际返回结果数量（score >= minScore 后）", example = "3")
+    private int retrievalReturnedCount;
 }

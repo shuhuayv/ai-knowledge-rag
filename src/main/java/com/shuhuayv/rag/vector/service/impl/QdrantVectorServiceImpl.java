@@ -6,9 +6,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClient;
 
 import java.util.ArrayList;
@@ -32,8 +32,15 @@ public class QdrantVectorServiceImpl implements QdrantVectorService {
     private int qdrantPort;
 
     public QdrantVectorServiceImpl() {
-        this.restClient = RestClient.builder().build();
-        this.objectMapper = new ObjectMapper();
+        this(RestClient.builder().build(), new ObjectMapper());
+    }
+
+    /**
+     * 测试友好构造器：注入 Mock/自定义 RestClient 与 ObjectMapper，便于离线单测。
+     */
+    public QdrantVectorServiceImpl(RestClient restClient, ObjectMapper objectMapper) {
+        this.restClient = restClient;
+        this.objectMapper = objectMapper;
     }
 
     private String baseUrl() {
@@ -47,20 +54,42 @@ public class QdrantVectorServiceImpl implements QdrantVectorService {
     public void ensureCollection(String collectionName, int vectorDimension) {
         String url = baseUrl() + "/collections/" + collectionName;
 
+        // 已存在：读取远端向量维度与距离，校验一致；不一致明确抛异常，绝不自动删除/重建。
         try {
-            var response = restClient.get()
-                    .uri(url)
-                    .retrieve()
-                    .toBodilessEntity();
-
-            if (response.getStatusCode() == HttpStatus.OK) {
-                log.info("Collection already exists: {}", collectionName);
-                return;
+            String responseBody = restClient.get().uri(url).retrieve().body(String.class);
+            if (responseBody != null) {
+                JsonNode root = objectMapper.readTree(responseBody);
+                JsonNode result = root.get("result");
+                if (result != null) {
+                    JsonNode vectors = result.path("config").path("params").path("vectors");
+                    if (!vectors.isMissingNode() && vectors.has("size")) {
+                        int remoteSize = vectors.get("size").asInt();
+                        String remoteDistance = vectors.has("distance") ? vectors.get("distance").asText() : null;
+                        if (remoteSize != vectorDimension) {
+                            throw new IllegalStateException("Qdrant Collection [" + collectionName
+                                    + "] 已存在，但向量维度不一致：期望 " + vectorDimension
+                                    + "，实际 " + remoteSize
+                                    + "。请检查是否混用了不同 Embedding 模型（384=mock / 1024=zhipu），"
+                                    + "或手动重建该 Collection 后重试。");
+                        }
+                        if (remoteDistance != null && !"Cosine".equalsIgnoreCase(remoteDistance)) {
+                            throw new IllegalStateException("Qdrant Collection [" + collectionName
+                                    + "] 已存在，但距离度量不一致：期望 Cosine，实际 " + remoteDistance + "。");
+                        }
+                        log.info("Collection 已存在且维度/距离一致：{}, dimension={}, distance={}",
+                                collectionName, remoteSize, remoteDistance);
+                        return;
+                    }
+                }
             }
+        } catch (IllegalStateException e) {
+            // 维度/距离不一致：明确抛出，不吞掉
+            throw e;
         } catch (Exception e) {
-            log.info("Collection not found, creating: {}", collectionName);
+            log.info("Collection 不存在或配置不可读，将创建：{}, error={}", collectionName, e.getMessage());
         }
 
+        // 不存在或配置不可读：创建
         String body = String.format(
                 "{\"vectors\":{\"size\":%d,\"distance\":\"Cosine\"}}",
                 vectorDimension
@@ -74,10 +103,39 @@ public class QdrantVectorServiceImpl implements QdrantVectorService {
                     .retrieve()
                     .toBodilessEntity();
             log.info("Collection created: {}, dimension={}, distance=Cosine", collectionName, vectorDimension);
+        } catch (HttpStatusCodeException ex) {
+            String errorMsg = "创建 Qdrant Collection 失败: " + ex.getMessage();
+            log.error(errorMsg, ex);
+            throw new RuntimeException("Qdrant 返回错误（HTTP " + ex.getStatusCode().value() + "）：" + safeBody(ex), ex);
         } catch (Exception e) {
             String errorMsg = "创建 Qdrant Collection 失败: " + e.getMessage();
             log.error(errorMsg, e);
             throw new RuntimeException("Qdrant 不可用，请确保 Qdrant 已启动（端口 " + qdrantPort + "）: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public int getVectorSize(String collectionName) {
+        String url = baseUrl() + "/collections/" + collectionName;
+        try {
+            String responseBody = restClient.get().uri(url).retrieve().body(String.class);
+            if (responseBody == null) {
+                throw new IllegalStateException("无法读取 Collection 信息（响应为空）：" + collectionName);
+            }
+            JsonNode root = objectMapper.readTree(responseBody);
+            JsonNode result = root.get("result");
+            if (result == null) {
+                throw new IllegalStateException("Collection 不存在：" + collectionName);
+            }
+            JsonNode vectors = result.path("config").path("params").path("vectors");
+            if (vectors.isMissingNode() || !vectors.has("size")) {
+                throw new IllegalStateException("Collection 缺少向量维度信息：" + collectionName);
+            }
+            return vectors.get("size").asInt();
+        } catch (IllegalStateException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("读取 Qdrant Collection 维度失败：" + e.getMessage(), e);
         }
     }
 
@@ -115,11 +173,27 @@ public class QdrantVectorServiceImpl implements QdrantVectorService {
                     .retrieve()
                     .toBodilessEntity();
             log.info("Point upserted: collection={}, pointId={}", collectionName, pointId);
+        } catch (HttpStatusCodeException ex) {
+            String errorMsg = "写入 Qdrant Point 失败: " + ex.getMessage();
+            log.error(errorMsg, ex);
+            throw new RuntimeException("Qdrant 返回错误（HTTP " + ex.getStatusCode().value() + "）：" + safeBody(ex), ex);
         } catch (Exception e) {
             String errorMsg = "写入 Qdrant Point 失败: " + e.getMessage();
             log.error(errorMsg, e);
             throw new RuntimeException("Qdrant 不可用，请确保 Qdrant 已启动（端口 " + qdrantPort + "）: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * 安全提取 Qdrant HTTP 错误响应体前 300 字符，避免记录过大响应体或任何敏感信息。
+     * Qdrant 错误体本身不含 API Key / 鉴权信息，此处仅做长度截断。
+     */
+    private String safeBody(HttpStatusCodeException ex) {
+        String b = ex.getResponseBodyAsString();
+        if (b == null) {
+            return "";
+        }
+        return b.length() > 300 ? b.substring(0, 300) : b;
     }
 
     private String escapeJson(String s) {
