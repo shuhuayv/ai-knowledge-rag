@@ -120,7 +120,9 @@ public class RagServiceImpl implements RagService {
                             .build())
                     .collect(Collectors.toList());
 
-            String promptPreview = prompt.length() > 500 ? prompt.substring(0, 500) : prompt;
+            String promptPreview = prompt.length() > 3000
+                    ? prompt.substring(0, 3000) + "\n\n…（Prompt 预览已截断）"
+                    : prompt;
             long costMs = System.currentTimeMillis() - startTime;
 
             saveAiCallLog(question, topK, answer, costMs, status, null);
