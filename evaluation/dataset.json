@@ -1,0 +1,168 @@
+{
+  "meta": {
+    "name": "RAG 小型受控检索/生成评估集",
+    "version": "1.0.0",
+    "description": "基于用户当前已索引文档（company_policy.txt / qa_sample_doc.txt / rag-demo.txt）构建的小型受控评估集。非大规模生产基准。预期答案依据文档真实内容标注，未根据模型返回结果反向篡改。",
+    "expectedSourceNote": "expectedSources 为文件名；检索结果通过 documentId->fileName 映射判定来源。命中 = 返回结果中包含期望文档 或 包含期望答案关键词（任一即计为命中，文档级+答案级宽松并集）。",
+    "categories": ["精确事实", "同义表达", "数字/金额", "时间/假期", "制度规则", "多段信息", "相似文档干扰", "无答案"]
+  },
+  "samples": [
+    {
+      "id": "q01",
+      "category": "精确事实",
+      "question": "员工入职满 1 年可以享受多少天年假？",
+      "expectedSources": ["company_policy.txt"],
+      "expectedKeywords": ["5天", "5 天"],
+      "topK": 5,
+      "shouldRetrieve": true
+    },
+    {
+      "id": "q02",
+      "category": "数字/金额",
+      "question": "一线城市出差住宿标准是多少元每晚？",
+      "expectedSources": ["company_policy.txt"],
+      "expectedKeywords": ["500元", "500 元", "500"],
+      "topK": 5,
+      "shouldRetrieve": true
+    },
+    {
+      "id": "q03",
+      "category": "数字/金额",
+      "question": "其他城市出差住宿标准是多少元每晚？",
+      "expectedSources": ["company_policy.txt"],
+      "expectedKeywords": ["350元", "350 元", "350"],
+      "topK": 5,
+      "shouldRetrieve": true,
+      "note": "与 q02 形成相似数值干扰（500 vs 350）"
+    },
+    {
+      "id": "q04",
+      "category": "时间/假期",
+      "question": "当年没休完的年假最迟可以顺延到什么时候？",
+      "expectedSources": ["company_policy.txt"],
+      "expectedKeywords": ["次年3月底", "3月底", "次年 3 月底"],
+      "topK": 5,
+      "shouldRetrieve": true
+    },
+    {
+      "id": "q05",
+      "category": "制度规则",
+      "question": "公司系统密码最少需要多少位？",
+      "expectedSources": ["company_policy.txt"],
+      "expectedKeywords": ["8位", "不少于8", "8 位"],
+      "topK": 5,
+      "shouldRetrieve": true
+    },
+    {
+      "id": "q06",
+      "category": "制度规则",
+      "question": "密码需要间隔多少天更换一次？",
+      "expectedSources": ["company_policy.txt"],
+      "expectedKeywords": ["90天", "90 天"],
+      "topK": 5,
+      "shouldRetrieve": true
+    },
+    {
+      "id": "q07",
+      "category": "制度规则",
+      "question": "发现信息安全事件需要在多长时间内向安全部门报告？",
+      "expectedSources": ["company_policy.txt"],
+      "expectedKeywords": ["1小时", "1 小时"],
+      "topK": 5,
+      "shouldRetrieve": true
+    },
+    {
+      "id": "q08",
+      "category": "数字/金额",
+      "question": "每月办公用品报销上限是多少元？",
+      "expectedSources": ["company_policy.txt"],
+      "expectedKeywords": ["500元/人", "500"],
+      "topK": 5,
+      "shouldRetrieve": true,
+      "note": "与 q02/q03 的住宿金额形成数值干扰"
+    },
+    {
+      "id": "q09",
+      "category": "数字/金额",
+      "question": "一线城市出差补贴标准是多少元每天？",
+      "expectedSources": ["company_policy.txt"],
+      "expectedKeywords": ["150元/天", "150"],
+      "topK": 5,
+      "shouldRetrieve": true
+    },
+    {
+      "id": "q10",
+      "category": "同义表达",
+      "question": "员工出差要提前多久提交出差申请？",
+      "expectedSources": ["company_policy.txt"],
+      "expectedKeywords": ["3个工作日", "提前3个工作日"],
+      "topK": 5,
+      "shouldRetrieve": true
+    },
+    {
+      "id": "q11",
+      "category": "多段信息",
+      "question": "员工差旅报销需要准备哪些材料？",
+      "expectedSources": ["company_policy.txt"],
+      "expectedKeywords": ["出差申请单", "交通票据", "住宿发票", "出差报告"],
+      "topK": 5,
+      "shouldRetrieve": true
+    },
+    {
+      "id": "q12",
+      "category": "数字/金额",
+      "question": "员工入职满 5 年有多少天年假？",
+      "expectedSources": ["company_policy.txt"],
+      "expectedKeywords": ["15天", "15 天"],
+      "topK": 5,
+      "shouldRetrieve": true
+    },
+    {
+      "id": "q13",
+      "category": "精确事实",
+      "question": "智谱 AI 提供哪个 Embedding 模型用于把文本编码为向量？",
+      "expectedSources": ["qa_sample_doc.txt"],
+      "expectedKeywords": ["embedding-3"],
+      "topK": 5,
+      "shouldRetrieve": true
+    },
+    {
+      "id": "q14",
+      "category": "数字/精确",
+      "question": "embedding-3 模型把文本编码为多少维的向量？",
+      "expectedSources": ["qa_sample_doc.txt"],
+      "expectedKeywords": ["1024维", "1024"],
+      "topK": 5,
+      "shouldRetrieve": true
+    },
+    {
+      "id": "q15",
+      "category": "精确事实",
+      "question": "RAG 技术中负责存储向量和相似度检索的开源向量数据库是什么？",
+      "expectedSources": ["qa_sample_doc.txt"],
+      "expectedKeywords": ["Qdrant"],
+      "topK": 5,
+      "shouldRetrieve": true
+    },
+    {
+      "id": "q16",
+      "category": "相似文档干扰",
+      "question": "员工出差产生的交通费可以报销吗？",
+      "expectedSources": ["company_policy.txt", "rag-demo.txt"],
+      "expectedKeywords": ["交通费", "报销"],
+      "topK": 5,
+      "shouldRetrieve": true,
+      "note": "company_policy 与 rag-demo 均含出差报销内容，验证检索能否覆盖相关来源"
+    },
+    {
+      "id": "q17",
+      "category": "无答案",
+      "question": "公司食堂今天中午供应什么菜？",
+      "expectedSources": [],
+      "expectedKeywords": [],
+      "topK": 5,
+      "shouldRetrieve": false,
+      "note": "知识库中无对应文档，预期检索不应返回相关来源（正确 abstain）"
+    }
+  ]
+}
