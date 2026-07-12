@@ -1,0 +1,835 @@
+[
+  {
+    "id": "q01",
+    "category": "精确事实",
+    "question": "员工入职满 1 年可以享受多少天年假？",
+    "topK": 5,
+    "latency_ms": 2180.9,
+    "provider": "zhipu",
+    "model": "glm-4.5-air",
+    "embeddingProvider": "zhipu",
+    "embeddingMode": "REAL",
+    "fallbackUsed": false,
+    "referenceCount": 5,
+    "retrievalQualityNote": "正常",
+    "answer": "根据检索到的文档片段，员工入职满1年可以享受5天年假。",
+    "answer_length": 27,
+    "references": [
+      {
+        "documentId": 10,
+        "chunkId": 11,
+        "chunkIndex": 0,
+        "score": 0.68997526
+      },
+      {
+        "documentId": 6,
+        "chunkId": 7,
+        "chunkIndex": 0,
+        "score": 0.68997526
+      },
+      {
+        "documentId": 7,
+        "chunkId": 8,
+        "chunkIndex": 0,
+        "score": 0.68997526
+      },
+      {
+        "documentId": 9,
+        "chunkId": 10,
+        "chunkIndex": 0,
+        "score": 0.68997526
+      },
+      {
+        "documentId": 2,
+        "chunkId": 3,
+        "chunkIndex": 0,
+        "score": 0.5856989
+      }
+    ],
+    "faithfulness_heuristic": true
+  },
+  {
+    "id": "q02",
+    "category": "数字/金额",
+    "question": "一线城市出差住宿标准是多少元每晚？",
+    "topK": 5,
+    "latency_ms": 2139.2,
+    "provider": "zhipu",
+    "model": "glm-4.5-air",
+    "embeddingProvider": "zhipu",
+    "embeddingMode": "REAL",
+    "fallbackUsed": false,
+    "referenceCount": 5,
+    "retrievalQualityNote": "正常",
+    "answer": "根据检索到的文档片段，一线城市出差住宿标准为 500 元每晚。",
+    "answer_length": 31,
+    "references": [
+      {
+        "documentId": 10,
+        "chunkId": 11,
+        "chunkIndex": 0,
+        "score": 0.572211
+      },
+      {
+        "documentId": 6,
+        "chunkId": 7,
+        "chunkIndex": 0,
+        "score": 0.572211
+      },
+      {
+        "documentId": 7,
+        "chunkId": 8,
+        "chunkIndex": 0,
+        "score": 0.572211
+      },
+      {
+        "documentId": 9,
+        "chunkId": 10,
+        "chunkIndex": 0,
+        "score": 0.572211
+      },
+      {
+        "documentId": 2,
+        "chunkId": 3,
+        "chunkIndex": 0,
+        "score": 0.54130185
+      }
+    ],
+    "faithfulness_heuristic": true
+  },
+  {
+    "id": "q03",
+    "category": "数字/金额",
+    "question": "其他城市出差住宿标准是多少元每晚？",
+    "topK": 5,
+    "latency_ms": 1802.9,
+    "provider": "zhipu",
+    "model": "glm-4.5-air",
+    "embeddingProvider": "zhipu",
+    "embeddingMode": "REAL",
+    "fallbackUsed": false,
+    "referenceCount": 5,
+    "retrievalQualityNote": "正常",
+    "answer": "根据检索到的文档片段，其他城市出差住宿标准为 350 元每晚。",
+    "answer_length": 31,
+    "references": [
+      {
+        "documentId": 10,
+        "chunkId": 11,
+        "chunkIndex": 0,
+        "score": 0.5922927
+      },
+      {
+        "documentId": 6,
+        "chunkId": 7,
+        "chunkIndex": 0,
+        "score": 0.5922927
+      },
+      {
+        "documentId": 7,
+        "chunkId": 8,
+        "chunkIndex": 0,
+        "score": 0.5922927
+      },
+      {
+        "documentId": 9,
+        "chunkId": 10,
+        "chunkIndex": 0,
+        "score": 0.5922927
+      },
+      {
+        "documentId": 2,
+        "chunkId": 3,
+        "chunkIndex": 0,
+        "score": 0.5611391
+      }
+    ],
+    "faithfulness_heuristic": true
+  },
+  {
+    "id": "q04",
+    "category": "时间/假期",
+    "question": "当年没休完的年假最迟可以顺延到什么时候？",
+    "topK": 5,
+    "latency_ms": 3576.9,
+    "provider": "zhipu",
+    "model": "glm-4.5-air",
+    "embeddingProvider": "zhipu",
+    "embeddingMode": "REAL",
+    "fallbackUsed": false,
+    "referenceCount": 5,
+    "retrievalQualityNote": "正常",
+    "answer": "根据提供的文档片段，没有找到关于当年没休完的年假最迟可以顺延到什么时候的具体信息。文档中仅提到了年假的基本制度（入职满一年可享受 5 天年假，入职满三年可享受 10 天年假），但没有涉及年假顺延或有效期相关的规定。",
+    "answer_length": 107,
+    "references": [
+      {
+        "documentId": 10,
+        "chunkId": 11,
+        "chunkIndex": 0,
+        "score": 0.5751059
+      },
+      {
+        "documentId": 6,
+        "chunkId": 7,
+        "chunkIndex": 0,
+        "score": 0.5751059
+      },
+      {
+        "documentId": 7,
+        "chunkId": 8,
+        "chunkIndex": 0,
+        "score": 0.5751059
+      },
+      {
+        "documentId": 9,
+        "chunkId": 10,
+        "chunkIndex": 0,
+        "score": 0.5751059
+      },
+      {
+        "documentId": 2,
+        "chunkId": 3,
+        "chunkIndex": 0,
+        "score": 0.50535744
+      }
+    ],
+    "faithfulness_heuristic": false
+  },
+  {
+    "id": "q05",
+    "category": "制度规则",
+    "question": "公司系统密码最少需要多少位？",
+    "topK": 5,
+    "latency_ms": 2600.2,
+    "provider": "zhipu",
+    "model": "glm-4.5-air",
+    "embeddingProvider": "zhipu",
+    "embeddingMode": "REAL",
+    "fallbackUsed": false,
+    "referenceCount": 5,
+    "retrievalQualityNote": "正常",
+    "answer": "根据检索到的文档片段，公司系统密码长度不少于 8 位，且需包含大小写字母、数字和特殊字符。",
+    "answer_length": 45,
+    "references": [
+      {
+        "documentId": 10,
+        "chunkId": 11,
+        "chunkIndex": 0,
+        "score": 0.4876929
+      },
+      {
+        "documentId": 6,
+        "chunkId": 7,
+        "chunkIndex": 0,
+        "score": 0.4876929
+      },
+      {
+        "documentId": 7,
+        "chunkId": 8,
+        "chunkIndex": 0,
+        "score": 0.4876929
+      },
+      {
+        "documentId": 9,
+        "chunkId": 10,
+        "chunkIndex": 0,
+        "score": 0.4876929
+      },
+      {
+        "documentId": 2,
+        "chunkId": 4,
+        "chunkIndex": 1,
+        "score": 0.4659275
+      }
+    ],
+    "faithfulness_heuristic": true
+  },
+  {
+    "id": "q06",
+    "category": "制度规则",
+    "question": "密码需要间隔多少天更换一次？",
+    "topK": 5,
+    "latency_ms": 2725.9,
+    "provider": "zhipu",
+    "model": "glm-4.5-air",
+    "embeddingProvider": "zhipu",
+    "embeddingMode": "REAL",
+    "fallbackUsed": false,
+    "referenceCount": 5,
+    "retrievalQualityNote": "正常",
+    "answer": "根据检索到的文档片段，密码需要每90天更换一次。这是在\"信息安全制度\"的\"密码管理\"部分中明确规定的内容：\"所有系统密码长度不少于8位，需包含大小写字母、数字和特殊字符。密码每90天更换一次。\"",
+    "answer_length": 97,
+    "references": [
+      {
+        "documentId": 2,
+        "chunkId": 4,
+        "chunkIndex": 1,
+        "score": 0.4189528
+      },
+      {
+        "documentId": 10,
+        "chunkId": 11,
+        "chunkIndex": 0,
+        "score": 0.40720427
+      },
+      {
+        "documentId": 7,
+        "chunkId": 8,
+        "chunkIndex": 0,
+        "score": 0.40720427
+      },
+      {
+        "documentId": 9,
+        "chunkId": 10,
+        "chunkIndex": 0,
+        "score": 0.40720427
+      },
+      {
+        "documentId": 6,
+        "chunkId": 7,
+        "chunkIndex": 0,
+        "score": 0.40720427
+      }
+    ],
+    "faithfulness_heuristic": true
+  },
+  {
+    "id": "q07",
+    "category": "制度规则",
+    "question": "发现信息安全事件需要在多长时间内向安全部门报告？",
+    "topK": 5,
+    "latency_ms": 2293.7,
+    "provider": "zhipu",
+    "model": "glm-4.5-air",
+    "embeddingProvider": "zhipu",
+    "embeddingMode": "REAL",
+    "fallbackUsed": false,
+    "referenceCount": 5,
+    "retrievalQualityNote": "正常",
+    "answer": "根据检索到的文档片段，发现信息安全事件需要在1小时内向信息安全部门报告。这一规定在文档片段1的\"四、信息安全制度\"部分的\"4.3 安全事件上报\"中有明确说明。",
+    "answer_length": 79,
+    "references": [
+      {
+        "documentId": 2,
+        "chunkId": 4,
+        "chunkIndex": 1,
+        "score": 0.46585363
+      },
+      {
+        "documentId": 10,
+        "chunkId": 11,
+        "chunkIndex": 0,
+        "score": 0.3980301
+      },
+      {
+        "documentId": 7,
+        "chunkId": 8,
+        "chunkIndex": 0,
+        "score": 0.3980301
+      },
+      {
+        "documentId": 9,
+        "chunkId": 10,
+        "chunkIndex": 0,
+        "score": 0.3980301
+      },
+      {
+        "documentId": 6,
+        "chunkId": 7,
+        "chunkIndex": 0,
+        "score": 0.3980301
+      }
+    ],
+    "faithfulness_heuristic": true
+  },
+  {
+    "id": "q08",
+    "category": "数字/金额",
+    "question": "每月办公用品报销上限是多少元？",
+    "topK": 5,
+    "latency_ms": 2510.6,
+    "provider": "zhipu",
+    "model": "glm-4.5-air",
+    "embeddingProvider": "zhipu",
+    "embeddingMode": "REAL",
+    "fallbackUsed": false,
+    "referenceCount": 5,
+    "retrievalQualityNote": "正常",
+    "answer": "根据检索到的文档片段，每月办公用品报销上限为500元/人，超出部分需部门负责人特批。报销时需提供采购发票和物品清单。",
+    "answer_length": 58,
+    "references": [
+      {
+        "documentId": 10,
+        "chunkId": 11,
+        "chunkIndex": 0,
+        "score": 0.5916956
+      },
+      {
+        "documentId": 6,
+        "chunkId": 7,
+        "chunkIndex": 0,
+        "score": 0.5916956
+      },
+      {
+        "documentId": 7,
+        "chunkId": 8,
+        "chunkIndex": 0,
+        "score": 0.5916956
+      },
+      {
+        "documentId": 9,
+        "chunkId": 10,
+        "chunkIndex": 0,
+        "score": 0.5916956
+      },
+      {
+        "documentId": 2,
+        "chunkId": 3,
+        "chunkIndex": 0,
+        "score": 0.57765466
+      }
+    ],
+    "faithfulness_heuristic": true
+  },
+  {
+    "id": "q09",
+    "category": "数字/金额",
+    "question": "一线城市出差补贴标准是多少元每天？",
+    "topK": 5,
+    "latency_ms": 2058.1,
+    "provider": "zhipu",
+    "model": "glm-4.5-air",
+    "embeddingProvider": "zhipu",
+    "embeddingMode": "REAL",
+    "fallbackUsed": false,
+    "referenceCount": 5,
+    "retrievalQualityNote": "正常",
+    "answer": "根据检索到的文档片段，一线城市出差补贴标准是 150 元/天。",
+    "answer_length": 31,
+    "references": [
+      {
+        "documentId": 10,
+        "chunkId": 11,
+        "chunkIndex": 0,
+        "score": 0.6189406
+      },
+      {
+        "documentId": 6,
+        "chunkId": 7,
+        "chunkIndex": 0,
+        "score": 0.6189406
+      },
+      {
+        "documentId": 7,
+        "chunkId": 8,
+        "chunkIndex": 0,
+        "score": 0.6189406
+      },
+      {
+        "documentId": 9,
+        "chunkId": 10,
+        "chunkIndex": 0,
+        "score": 0.6189406
+      },
+      {
+        "documentId": 2,
+        "chunkId": 3,
+        "chunkIndex": 0,
+        "score": 0.5497736
+      }
+    ],
+    "faithfulness_heuristic": true
+  },
+  {
+    "id": "q10",
+    "category": "同义表达",
+    "question": "员工出差要提前多久提交出差申请？",
+    "topK": 5,
+    "latency_ms": 2683.1,
+    "provider": "zhipu",
+    "model": "glm-4.5-air",
+    "embeddingProvider": "zhipu",
+    "embeddingMode": "REAL",
+    "fallbackUsed": false,
+    "referenceCount": 5,
+    "retrievalQualityNote": "正常",
+    "answer": "根据提供的资料，员工出差需要提前 3 个工作日提交出差申请，经部门负责人审批后方可出行。紧急出差可事后补报。",
+    "answer_length": 54,
+    "references": [
+      {
+        "documentId": 2,
+        "chunkId": 3,
+        "chunkIndex": 0,
+        "score": 0.5865094
+      },
+      {
+        "documentId": 10,
+        "chunkId": 11,
+        "chunkIndex": 0,
+        "score": 0.58403665
+      },
+      {
+        "documentId": 7,
+        "chunkId": 8,
+        "chunkIndex": 0,
+        "score": 0.58403665
+      },
+      {
+        "documentId": 9,
+        "chunkId": 10,
+        "chunkIndex": 0,
+        "score": 0.58403665
+      },
+      {
+        "documentId": 6,
+        "chunkId": 7,
+        "chunkIndex": 0,
+        "score": 0.58403665
+      }
+    ],
+    "faithfulness_heuristic": false
+  },
+  {
+    "id": "q11",
+    "category": "多段信息",
+    "question": "员工差旅报销需要准备哪些材料？",
+    "topK": 5,
+    "latency_ms": 2792.3,
+    "provider": "zhipu",
+    "model": "glm-4.5-air",
+    "embeddingProvider": "zhipu",
+    "embeddingMode": "REAL",
+    "fallbackUsed": false,
+    "referenceCount": 5,
+    "retrievalQualityNote": "正常",
+    "answer": "根据提供的资料，员工差旅报销需要准备以下材料：\n\n1. 出差申请单（需经部门负责人审批）\n2. 交通票据原件（包括机票、火车票、出租车发票）\n3. 住宿发票原件\n4. 出差报告\n\n此外，员工出差需提前3个工作日提交出差申请，紧急出差可事后补报。",
+    "answer_length": 122,
+    "references": [
+      {
+        "documentId": 2,
+        "chunkId": 3,
+        "chunkIndex": 0,
+        "score": 0.5864186
+      },
+      {
+        "documentId": 10,
+        "chunkId": 11,
+        "chunkIndex": 0,
+        "score": 0.5805
+      },
+      {
+        "documentId": 7,
+        "chunkId": 8,
+        "chunkIndex": 0,
+        "score": 0.5805
+      },
+      {
+        "documentId": 9,
+        "chunkId": 10,
+        "chunkIndex": 0,
+        "score": 0.5805
+      },
+      {
+        "documentId": 6,
+        "chunkId": 7,
+        "chunkIndex": 0,
+        "score": 0.5805
+      }
+    ],
+    "faithfulness_heuristic": true
+  },
+  {
+    "id": "q12",
+    "category": "数字/金额",
+    "question": "员工入职满 5 年有多少天年假？",
+    "topK": 5,
+    "latency_ms": 1810.8,
+    "provider": "zhipu",
+    "model": "glm-4.5-air",
+    "embeddingProvider": "zhipu",
+    "embeddingMode": "REAL",
+    "fallbackUsed": false,
+    "referenceCount": 5,
+    "retrievalQualityNote": "正常",
+    "answer": "根据检索到的资料，员工入职满 5 年有 15 天年假。",
+    "answer_length": 27,
+    "references": [
+      {
+        "documentId": 10,
+        "chunkId": 11,
+        "chunkIndex": 0,
+        "score": 0.6809061
+      },
+      {
+        "documentId": 6,
+        "chunkId": 7,
+        "chunkIndex": 0,
+        "score": 0.6809061
+      },
+      {
+        "documentId": 7,
+        "chunkId": 8,
+        "chunkIndex": 0,
+        "score": 0.6809061
+      },
+      {
+        "documentId": 9,
+        "chunkId": 10,
+        "chunkIndex": 0,
+        "score": 0.6809061
+      },
+      {
+        "documentId": 2,
+        "chunkId": 4,
+        "chunkIndex": 1,
+        "score": 0.5935155
+      }
+    ],
+    "faithfulness_heuristic": true
+  },
+  {
+    "id": "q13",
+    "category": "精确事实",
+    "question": "智谱 AI 提供哪个 Embedding 模型用于把文本编码为向量？",
+    "topK": 5,
+    "latency_ms": 2514.8,
+    "provider": "zhipu",
+    "model": "glm-4.5-air",
+    "embeddingProvider": "zhipu",
+    "embeddingMode": "REAL",
+    "fallbackUsed": false,
+    "referenceCount": 5,
+    "retrievalQualityNote": "正常",
+    "answer": "根据检索到的文档片段，智谱 AI 提供 embedding-3 模型用于把文本编码为 1024 维语义向量。",
+    "answer_length": 54,
+    "references": [
+      {
+        "documentId": 3,
+        "chunkId": 5,
+        "chunkIndex": 0,
+        "score": 0.7151058
+      },
+      {
+        "documentId": 5,
+        "chunkId": 6,
+        "chunkIndex": 0,
+        "score": 0.48448178
+      },
+      {
+        "documentId": 8,
+        "chunkId": 9,
+        "chunkIndex": 0,
+        "score": 0.48448178
+      },
+      {
+        "documentId": 2,
+        "chunkId": 3,
+        "chunkIndex": 0,
+        "score": 0.47194588
+      },
+      {
+        "documentId": 2,
+        "chunkId": 4,
+        "chunkIndex": 1,
+        "score": 0.43425483
+      }
+    ],
+    "faithfulness_heuristic": true
+  },
+  {
+    "id": "q14",
+    "category": "数字/精确",
+    "question": "embedding-3 模型把文本编码为多少维的向量？",
+    "topK": 5,
+    "latency_ms": 1787.6,
+    "provider": "zhipu",
+    "model": "glm-4.5-air",
+    "embeddingProvider": "zhipu",
+    "embeddingMode": "REAL",
+    "fallbackUsed": false,
+    "referenceCount": 5,
+    "retrievalQualityNote": "正常",
+    "answer": "根据片段1，embedding-3模型把文本编码为1024维的语义向量。",
+    "answer_length": 36,
+    "references": [
+      {
+        "documentId": 3,
+        "chunkId": 5,
+        "chunkIndex": 0,
+        "score": 0.6022827
+      },
+      {
+        "documentId": 2,
+        "chunkId": 3,
+        "chunkIndex": 0,
+        "score": 0.47358412
+      },
+      {
+        "documentId": 2,
+        "chunkId": 4,
+        "chunkIndex": 1,
+        "score": 0.4538855
+      },
+      {
+        "documentId": 7,
+        "chunkId": 8,
+        "chunkIndex": 0,
+        "score": 0.43406385
+      },
+      {
+        "documentId": 9,
+        "chunkId": 10,
+        "chunkIndex": 0,
+        "score": 0.43406385
+      }
+    ],
+    "faithfulness_heuristic": true
+  },
+  {
+    "id": "q15",
+    "category": "精确事实",
+    "question": "RAG 技术中负责存储向量和相似度检索的开源向量数据库是什么？",
+    "topK": 5,
+    "latency_ms": 3593.1,
+    "provider": "zhipu",
+    "model": "glm-4.5-air",
+    "embeddingProvider": "zhipu",
+    "embeddingMode": "REAL",
+    "fallbackUsed": false,
+    "referenceCount": 5,
+    "retrievalQualityNote": "正常",
+    "answer": "根据提供的文档片段，RAG 技术中负责存储向量和相似度检索的开源向量数据库是 Qdrant。在片段 1 中明确提到：\"Qdrant 是开源向量数据库，负责存储与相似度检索这些向量。\"",
+    "answer_length": 91,
+    "references": [
+      {
+        "documentId": 3,
+        "chunkId": 5,
+        "chunkIndex": 0,
+        "score": 0.71454656
+      },
+      {
+        "documentId": 2,
+        "chunkId": 4,
+        "chunkIndex": 1,
+        "score": 0.4964062
+      },
+      {
+        "documentId": 2,
+        "chunkId": 3,
+        "chunkIndex": 0,
+        "score": 0.43685365
+      },
+      {
+        "documentId": 8,
+        "chunkId": 9,
+        "chunkIndex": 0,
+        "score": 0.41650164
+      },
+      {
+        "documentId": 5,
+        "chunkId": 6,
+        "chunkIndex": 0,
+        "score": 0.41650164
+      }
+    ],
+    "faithfulness_heuristic": true
+  },
+  {
+    "id": "q16",
+    "category": "相似文档干扰",
+    "question": "员工出差产生的交通费可以报销吗？",
+    "topK": 5,
+    "latency_ms": 4622.6,
+    "provider": "zhipu",
+    "model": "glm-4.5-air",
+    "embeddingProvider": "zhipu",
+    "embeddingMode": "REAL",
+    "fallbackUsed": false,
+    "referenceCount": 5,
+    "retrievalQualityNote": "正常",
+    "answer": "根据检索到的文档，员工出差产生的交通费可以报销。具体规定如下：\n\n1. 员工因公出差产生的交通费可全额报销，需提前提交出差申请单。\n2. 报销时需提供交通票据原件，包括机票、火车票、出租车发票等。\n3. 交通工具标准为：高铁/动车二等座（5小时以内）、飞机经济舱（5小时以上）。\n4. 市内交通可以实报实销。\n\n此外，员工出差需提前3个工作日提交出差申请，经部门负责人审批后方可出行。紧急出差可事后补报。",
+    "answer_length": 202,
+    "references": [
+      {
+        "documentId": 10,
+        "chunkId": 11,
+        "chunkIndex": 0,
+        "score": 0.6353649
+      },
+      {
+        "documentId": 6,
+        "chunkId": 7,
+        "chunkIndex": 0,
+        "score": 0.6353649
+      },
+      {
+        "documentId": 7,
+        "chunkId": 8,
+        "chunkIndex": 0,
+        "score": 0.6353649
+      },
+      {
+        "documentId": 9,
+        "chunkId": 10,
+        "chunkIndex": 0,
+        "score": 0.6353649
+      },
+      {
+        "documentId": 2,
+        "chunkId": 3,
+        "chunkIndex": 0,
+        "score": 0.6149316
+      }
+    ],
+    "faithfulness_heuristic": true
+  },
+  {
+    "id": "q17",
+    "category": "无答案",
+    "question": "公司食堂今天中午供应什么菜？",
+    "topK": 5,
+    "latency_ms": 2448.0,
+    "provider": "zhipu",
+    "model": "glm-4.5-air",
+    "embeddingProvider": "zhipu",
+    "embeddingMode": "REAL",
+    "fallbackUsed": false,
+    "referenceCount": 5,
+    "retrievalQualityNote": "正常",
+    "answer": "抱歉，根据提供的资料，无法回答公司食堂今天中午供应什么菜的问题。检索到的文档片段主要包含公司报销制度和年假制度信息，没有关于食堂菜单的内容。",
+    "answer_length": 70,
+    "references": [
+      {
+        "documentId": 10,
+        "chunkId": 11,
+        "chunkIndex": 0,
+        "score": 0.43097898
+      },
+      {
+        "documentId": 6,
+        "chunkId": 7,
+        "chunkIndex": 0,
+        "score": 0.43097898
+      },
+      {
+        "documentId": 7,
+        "chunkId": 8,
+        "chunkIndex": 0,
+        "score": 0.43097898
+      },
+      {
+        "documentId": 9,
+        "chunkId": 10,
+        "chunkIndex": 0,
+        "score": 0.43097898
+      },
+      {
+        "documentId": 8,
+        "chunkId": 9,
+        "chunkIndex": 0,
+        "score": 0.3889897
+      }
+    ],
+    "faithfulness_heuristic": null
+  }
+]

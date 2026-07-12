@@ -1,0 +1,74 @@
+{
+  "eval_name": "RAG 真实检索 + 生成评估",
+  "dataset_version": "1.0.0",
+  "generated_at": "2026-07-12T12:12:54",
+  "base_git_commit": "51f6bc3",
+  "base_git_branch": "main",
+  "note": "评估在服务端真实 zhipu embedding + 真实 Qdrant 下运行；Chat 使用真实 glm-4.5-air。密钥经 macOS Keychain 在运行时读取，绝不出现于本文件、命令或日志。",
+  "environment": {
+    "embedding_provider": "zhipu",
+    "embedding_model": "embedding-3",
+    "embedding_dimensions": 1024,
+    "embedding_mode": "REAL",
+    "embedding_collection": "kb_chunks_zhipu_embedding_3_1024_v1",
+    "embedding_fallback_enabled": false,
+    "chat_provider": "zhipu",
+    "chat_model": "glm-4.5-air",
+    "chat_thinking_type": "disabled",
+    "default_topk": 5,
+    "services": {
+      "mysql": "127.0.0.1:3307",
+      "redis": "127.0.0.1:6379",
+      "qdrant": "127.0.0.1:6333",
+      "rag": "http://localhost:8080"
+    }
+  },
+  "corpus_state": {
+    "doc_count_total": 10,
+    "doc_count_indexed": 8,
+    "chunk_count_db": 11,
+    "chunk_count_indexed": 9,
+    "qdrant_points": 9,
+    "note": "9 个已索引 chunk 与 9 个 Qdrant point 一一对应；2 个未索引 chunk 无向量。评估语料取自用户当前已索引文档（company_policy.txt / qa_sample_doc.txt / rag-demo.txt），为小型受控评估集，非大规模生产基准。"
+  },
+  "retrieval_metrics": {
+    "total_samples": 17,
+    "retrieval_questions": 16,
+    "hit@1": 0.5,
+    "hit@3": 0.5,
+    "hit@5": 1.0,
+    "mrr": 0.6,
+    "no_result_rate": 0.0,
+    "http_parse_error_rate": 0.0,
+    "no_answer_correct_abstain_rate": 1.0,
+    "avg_latency_ms": 1044.82,
+    "p50_latency_ms": 1056.0,
+    "p95_latency_ms": 1463.06,
+    "hit_definition": "文档级：期望文档（按文件名）出现在 top-k 即计为命中；关键词仅作参考不计入命中，避免通用关键词在无关文档上的误命中。"
+  },
+  "generation_metrics": {
+    "sample_count": 17,
+    "success_rate": 1.0,
+    "failed_count": 0,
+    "empty_answer_count": 0,
+    "rate_limited_count": 0,
+    "timeout_count": 0,
+    "reference_inclusion_rate": 1.0,
+    "faithfulness_heuristic_rate": 0.875,
+    "avg_latency_ms": 2596.51,
+    "p50_latency_ms": 2510.6,
+    "p95_latency_ms": 3799.0,
+    "faithfulness_note": "启发式：成功回答是否包含数据集标注的 expectedKeywords；非绝对客观质量评分。2 个'否'为答案措辞差异（如'次年3月' vs '次年3月底'），非事实错误。"
+  },
+  "run_commands": {
+    "retrieval": "python3 evaluation/retrieval_eval.py --base-url http://localhost:8080 --out-dir evaluation/results",
+    "generation": "python3 evaluation/generation_eval.py --base-url http://localhost:8080 --out-dir evaluation/results --delay 1.0",
+    "unit_tests": "python3 evaluation/test_metrics.py",
+    "secret_handling": "ZHIPU_API_KEY 与 DB_PASSWORD 在运行机器经 `security find-generic-password` 从 Keychain 读取，仅注入当前进程环境，执行结束立即 unset；不写入命令、文件或日志。"
+  },
+  "findings": [
+    "重复索引的 rag-demo.txt（4 份相同内容）占据多数政策类问题的 top-1~top-4，将 company_policy.txt 相关 chunk 推至 rank-5，导致 Hit@1/3 仅 0.5、Hit@5 达 1.0。建议对重复/近似文档做去重或内容指纹，以提升精确召回。",
+    "company_policy.txt 仅被切分为 2 个 chunk（2079 字节），检索粒度较粗；部分细粒度事实（如年假天数）依赖文档级命中而非片段级命中。建议细化分块策略。",
+    "生成侧 17/17 成功且均带引用，未触发限流；平均延迟约 2.6s，P95 约 3.8s，属真实 Chat 正常区间。"
+  ]
+}
