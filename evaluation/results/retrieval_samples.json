@@ -1,0 +1,460 @@
+[
+  {
+    "id": "q01",
+    "category": "精确事实",
+    "question": "员工入职满 1 年可以享受多少天年假？",
+    "topK": 5,
+    "shouldRetrieve": true,
+    "expectedSources": [
+      "company_policy.txt"
+    ],
+    "expectedKeywords": [
+      "5天",
+      "5 天"
+    ],
+    "latency_ms": 1778.1,
+    "result_count": 5,
+    "returned_sources": [
+      "rag-demo.txt",
+      "rag-demo.txt",
+      "rag-demo.txt",
+      "rag-demo.txt",
+      "company_policy.txt"
+    ],
+    "rank": 5,
+    "hit": true,
+    "keyword_hit": true,
+    "hit_source": "company_policy.txt"
+  },
+  {
+    "id": "q02",
+    "category": "数字/金额",
+    "question": "一线城市出差住宿标准是多少元每晚？",
+    "topK": 5,
+    "shouldRetrieve": true,
+    "expectedSources": [
+      "company_policy.txt"
+    ],
+    "expectedKeywords": [
+      "500元",
+      "500 元",
+      "500"
+    ],
+    "latency_ms": 1121.8,
+    "result_count": 5,
+    "returned_sources": [
+      "rag-demo.txt",
+      "rag-demo.txt",
+      "rag-demo.txt",
+      "rag-demo.txt",
+      "company_policy.txt"
+    ],
+    "rank": 5,
+    "hit": true,
+    "keyword_hit": true,
+    "hit_source": "company_policy.txt"
+  },
+  {
+    "id": "q03",
+    "category": "数字/金额",
+    "question": "其他城市出差住宿标准是多少元每晚？",
+    "topK": 5,
+    "shouldRetrieve": true,
+    "expectedSources": [
+      "company_policy.txt"
+    ],
+    "expectedKeywords": [
+      "350元",
+      "350 元",
+      "350"
+    ],
+    "latency_ms": 631.4,
+    "result_count": 5,
+    "returned_sources": [
+      "rag-demo.txt",
+      "rag-demo.txt",
+      "rag-demo.txt",
+      "rag-demo.txt",
+      "company_policy.txt"
+    ],
+    "rank": 5,
+    "hit": true,
+    "keyword_hit": true,
+    "hit_source": "company_policy.txt"
+  },
+  {
+    "id": "q04",
+    "category": "时间/假期",
+    "question": "当年没休完的年假最迟可以顺延到什么时候？",
+    "topK": 5,
+    "shouldRetrieve": true,
+    "expectedSources": [
+      "company_policy.txt"
+    ],
+    "expectedKeywords": [
+      "次年3月底",
+      "3月底",
+      "次年 3 月底"
+    ],
+    "latency_ms": 1376.2,
+    "result_count": 5,
+    "returned_sources": [
+      "rag-demo.txt",
+      "rag-demo.txt",
+      "rag-demo.txt",
+      "rag-demo.txt",
+      "company_policy.txt"
+    ],
+    "rank": 5,
+    "hit": true,
+    "keyword_hit": false,
+    "hit_source": "company_policy.txt"
+  },
+  {
+    "id": "q05",
+    "category": "制度规则",
+    "question": "公司系统密码最少需要多少位？",
+    "topK": 5,
+    "shouldRetrieve": true,
+    "expectedSources": [
+      "company_policy.txt"
+    ],
+    "expectedKeywords": [
+      "8位",
+      "不少于8",
+      "8 位"
+    ],
+    "latency_ms": 774.6,
+    "result_count": 5,
+    "returned_sources": [
+      "rag-demo.txt",
+      "rag-demo.txt",
+      "rag-demo.txt",
+      "rag-demo.txt",
+      "company_policy.txt"
+    ],
+    "rank": 5,
+    "hit": true,
+    "keyword_hit": true,
+    "hit_source": "company_policy.txt"
+  },
+  {
+    "id": "q06",
+    "category": "制度规则",
+    "question": "密码需要间隔多少天更换一次？",
+    "topK": 5,
+    "shouldRetrieve": true,
+    "expectedSources": [
+      "company_policy.txt"
+    ],
+    "expectedKeywords": [
+      "90天",
+      "90 天"
+    ],
+    "latency_ms": 1033.4,
+    "result_count": 5,
+    "returned_sources": [
+      "company_policy.txt",
+      "rag-demo.txt",
+      "rag-demo.txt",
+      "rag-demo.txt",
+      "rag-demo.txt"
+    ],
+    "rank": 1,
+    "hit": true,
+    "keyword_hit": true,
+    "hit_source": "company_policy.txt"
+  },
+  {
+    "id": "q07",
+    "category": "制度规则",
+    "question": "发现信息安全事件需要在多长时间内向安全部门报告？",
+    "topK": 5,
+    "shouldRetrieve": true,
+    "expectedSources": [
+      "company_policy.txt"
+    ],
+    "expectedKeywords": [
+      "1小时",
+      "1 小时"
+    ],
+    "latency_ms": 693.0,
+    "result_count": 5,
+    "returned_sources": [
+      "company_policy.txt",
+      "rag-demo.txt",
+      "rag-demo.txt",
+      "rag-demo.txt",
+      "rag-demo.txt"
+    ],
+    "rank": 1,
+    "hit": true,
+    "keyword_hit": true,
+    "hit_source": "company_policy.txt"
+  },
+  {
+    "id": "q08",
+    "category": "数字/金额",
+    "question": "每月办公用品报销上限是多少元？",
+    "topK": 5,
+    "shouldRetrieve": true,
+    "expectedSources": [
+      "company_policy.txt"
+    ],
+    "expectedKeywords": [
+      "500元/人",
+      "500"
+    ],
+    "latency_ms": 1056.0,
+    "result_count": 5,
+    "returned_sources": [
+      "rag-demo.txt",
+      "rag-demo.txt",
+      "rag-demo.txt",
+      "rag-demo.txt",
+      "company_policy.txt"
+    ],
+    "rank": 5,
+    "hit": true,
+    "keyword_hit": true,
+    "hit_source": "company_policy.txt"
+  },
+  {
+    "id": "q09",
+    "category": "数字/金额",
+    "question": "一线城市出差补贴标准是多少元每天？",
+    "topK": 5,
+    "shouldRetrieve": true,
+    "expectedSources": [
+      "company_policy.txt"
+    ],
+    "expectedKeywords": [
+      "150元/天",
+      "150"
+    ],
+    "latency_ms": 928.5,
+    "result_count": 5,
+    "returned_sources": [
+      "rag-demo.txt",
+      "rag-demo.txt",
+      "rag-demo.txt",
+      "rag-demo.txt",
+      "company_policy.txt"
+    ],
+    "rank": 5,
+    "hit": true,
+    "keyword_hit": true,
+    "hit_source": "company_policy.txt"
+  },
+  {
+    "id": "q10",
+    "category": "同义表达",
+    "question": "员工出差要提前多久提交出差申请？",
+    "topK": 5,
+    "shouldRetrieve": true,
+    "expectedSources": [
+      "company_policy.txt"
+    ],
+    "expectedKeywords": [
+      "3个工作日",
+      "提前3个工作日"
+    ],
+    "latency_ms": 759.4,
+    "result_count": 5,
+    "returned_sources": [
+      "company_policy.txt",
+      "rag-demo.txt",
+      "rag-demo.txt",
+      "rag-demo.txt",
+      "rag-demo.txt"
+    ],
+    "rank": 1,
+    "hit": true,
+    "keyword_hit": false,
+    "hit_source": "company_policy.txt"
+  },
+  {
+    "id": "q11",
+    "category": "多段信息",
+    "question": "员工差旅报销需要准备哪些材料？",
+    "topK": 5,
+    "shouldRetrieve": true,
+    "expectedSources": [
+      "company_policy.txt"
+    ],
+    "expectedKeywords": [
+      "出差申请单",
+      "交通票据",
+      "住宿发票",
+      "出差报告"
+    ],
+    "latency_ms": 1384.3,
+    "result_count": 5,
+    "returned_sources": [
+      "company_policy.txt",
+      "rag-demo.txt",
+      "rag-demo.txt",
+      "rag-demo.txt",
+      "rag-demo.txt"
+    ],
+    "rank": 1,
+    "hit": true,
+    "keyword_hit": true,
+    "hit_source": "company_policy.txt"
+  },
+  {
+    "id": "q12",
+    "category": "数字/金额",
+    "question": "员工入职满 5 年有多少天年假？",
+    "topK": 5,
+    "shouldRetrieve": true,
+    "expectedSources": [
+      "company_policy.txt"
+    ],
+    "expectedKeywords": [
+      "15天",
+      "15 天"
+    ],
+    "latency_ms": 940.0,
+    "result_count": 5,
+    "returned_sources": [
+      "rag-demo.txt",
+      "rag-demo.txt",
+      "rag-demo.txt",
+      "rag-demo.txt",
+      "company_policy.txt"
+    ],
+    "rank": 5,
+    "hit": true,
+    "keyword_hit": true,
+    "hit_source": "company_policy.txt"
+  },
+  {
+    "id": "q13",
+    "category": "精确事实",
+    "question": "智谱 AI 提供哪个 Embedding 模型用于把文本编码为向量？",
+    "topK": 5,
+    "shouldRetrieve": true,
+    "expectedSources": [
+      "qa_sample_doc.txt"
+    ],
+    "expectedKeywords": [
+      "embedding-3"
+    ],
+    "latency_ms": 1072.6,
+    "result_count": 5,
+    "returned_sources": [
+      "qa_sample_doc.txt",
+      "来自 ChatGPT 的便笺.txt",
+      "来自 ChatGPT 的便笺.txt",
+      "company_policy.txt",
+      "company_policy.txt"
+    ],
+    "rank": 1,
+    "hit": true,
+    "keyword_hit": true,
+    "hit_source": "qa_sample_doc.txt"
+  },
+  {
+    "id": "q14",
+    "category": "数字/精确",
+    "question": "embedding-3 模型把文本编码为多少维的向量？",
+    "topK": 5,
+    "shouldRetrieve": true,
+    "expectedSources": [
+      "qa_sample_doc.txt"
+    ],
+    "expectedKeywords": [
+      "1024维",
+      "1024"
+    ],
+    "latency_ms": 1238.9,
+    "result_count": 5,
+    "returned_sources": [
+      "qa_sample_doc.txt",
+      "company_policy.txt",
+      "company_policy.txt",
+      "rag-demo.txt",
+      "rag-demo.txt"
+    ],
+    "rank": 1,
+    "hit": true,
+    "keyword_hit": true,
+    "hit_source": "qa_sample_doc.txt"
+  },
+  {
+    "id": "q15",
+    "category": "精确事实",
+    "question": "RAG 技术中负责存储向量和相似度检索的开源向量数据库是什么？",
+    "topK": 5,
+    "shouldRetrieve": true,
+    "expectedSources": [
+      "qa_sample_doc.txt"
+    ],
+    "expectedKeywords": [
+      "Qdrant"
+    ],
+    "latency_ms": 718.7,
+    "result_count": 5,
+    "returned_sources": [
+      "qa_sample_doc.txt",
+      "company_policy.txt",
+      "company_policy.txt",
+      "来自 ChatGPT 的便笺.txt",
+      "来自 ChatGPT 的便笺.txt"
+    ],
+    "rank": 1,
+    "hit": true,
+    "keyword_hit": true,
+    "hit_source": "qa_sample_doc.txt"
+  },
+  {
+    "id": "q16",
+    "category": "相似文档干扰",
+    "question": "员工出差产生的交通费可以报销吗？",
+    "topK": 5,
+    "shouldRetrieve": true,
+    "expectedSources": [
+      "company_policy.txt",
+      "rag-demo.txt"
+    ],
+    "expectedKeywords": [
+      "交通费",
+      "报销"
+    ],
+    "latency_ms": 1123.0,
+    "result_count": 5,
+    "returned_sources": [
+      "rag-demo.txt",
+      "rag-demo.txt",
+      "rag-demo.txt",
+      "rag-demo.txt",
+      "company_policy.txt"
+    ],
+    "rank": 1,
+    "hit": true,
+    "keyword_hit": true,
+    "hit_source": "rag-demo.txt"
+  },
+  {
+    "id": "q17",
+    "category": "无答案",
+    "question": "公司食堂今天中午供应什么菜？",
+    "topK": 5,
+    "shouldRetrieve": false,
+    "expectedSources": [],
+    "expectedKeywords": [],
+    "latency_ms": 1132.1,
+    "result_count": 5,
+    "returned_sources": [
+      "rag-demo.txt",
+      "rag-demo.txt",
+      "rag-demo.txt",
+      "rag-demo.txt",
+      "来自 ChatGPT 的便笺.txt"
+    ],
+    "rank": null,
+    "hit": false,
+    "keyword_hit": false
+  }
+]

@@ -1,0 +1,20 @@
+{
+  "total_samples": 17,
+  "valid_samples": 17,
+  "successful_retrievals": 17,
+  "failed_samples": 0,
+  "no_result_samples": 0,
+  "retrieval_questions": 16,
+  "hit@1": 0.5,
+  "hit@3": 0.5,
+  "hit@5": 1.0,
+  "mrr": 0.6,
+  "no_result_rate": 0.0,
+  "http_parse_error_rate": 0.0,
+  "no_answer_correct_rate": 1.0,
+  "latency": {
+    "avg_ms": 1044.82,
+    "p50_ms": 1056.0,
+    "p95_ms": 1463.06
+  }
+}

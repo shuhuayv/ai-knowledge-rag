@@ -1,0 +1,17 @@
+{
+  "sample_count": 17,
+  "success_count": 17,
+  "success_rate": 1.0,
+  "failed_count": 0,
+  "empty_answer_count": 0,
+  "rate_limited_count": 0,
+  "timeout_count": 0,
+  "reference_inclusion_rate": 1.0,
+  "faithfulness_heuristic_rate": 0.875,
+  "faithfulness_note": "启发式：成功回答是否包含数据集标注的 expectedKeywords；非绝对客观质量评分",
+  "latency": {
+    "avg_ms": 2596.51,
+    "p50_ms": 2510.6,
+    "p95_ms": 3799.0
+  }
+}
