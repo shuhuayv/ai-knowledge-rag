@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.Locale;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.LongConsumer;
 
 /**
  * OpenAI-compatible Chat Completions API 实现。
@@ -37,6 +38,20 @@ public class OpenAiCompatibleChatModelServiceImpl implements ChatModelService {
     private final String thinkingType;
     private final int maxRetries;
     private final Semaphore chatPermit = new Semaphore(1, true);
+    /** 限流退避等待策略（可注入，便于单测；默认 Thread.sleep）。 */
+    private LongConsumer backoffSleeper = ms -> {
+        try {
+            Thread.sleep(ms);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("等待 AI 限流重试时被中断", e);
+        }
+    };
+
+    /** 仅供单测注入零等待 / 计数型 sleeper，避免真实 sleep 拖慢测试。 */
+    void setBackoffSleeper(LongConsumer sleeper) {
+        this.backoffSleeper = sleeper;
+    }
 
     public OpenAiCompatibleChatModelServiceImpl(
             @Value("${ai.api-key:${ZHIPU_API_KEY:}}") String apiKey,
@@ -127,7 +142,7 @@ public class OpenAiCompatibleChatModelServiceImpl implements ChatModelService {
                 long delayMs = retryDelayMs(attempt);
                 log.warn("AI Chat rate limited, provider={}, model={}, attempt={}/{}, retryAfterMs={}",
                         provider, model, attempt, maxRetries + 1, delayMs);
-                sleepBeforeRetry(delayMs);
+                backoffSleeper.accept(delayMs);
             } catch (Exception e) {
                 long costMs = System.currentTimeMillis() - startTime;
                 log.error("AI API call failed, provider={}, model={}, costMs={}", provider, model, costMs, e);
