@@ -15,6 +15,8 @@ import org.springframework.web.client.RestClient;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.LongConsumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -67,6 +69,11 @@ class ZhipuEmbeddingServiceImplTest {
     // 使用非 embedding-3 的模型名构造，绕过 embedding-3 维度白名单，便于对任意维度做响应解析校验
     private ZhipuEmbeddingServiceImpl serviceWithModel(String model, int dims, int batchSize, int maxRetries) {
         return new ZhipuEmbeddingServiceImpl(restClient(), model, dims, batchSize, maxRetries);
+    }
+
+    // 注入自定义退避等待策略（零等待 / 计数），用于验证限流退避可注入且不真实 sleep
+    private ZhipuEmbeddingServiceImpl serviceWithSleeper(int dims, int batchSize, int maxRetries, LongConsumer sleeper) {
+        return new ZhipuEmbeddingServiceImpl(restClient(), "embedding-3", dims, batchSize, maxRetries, sleeper);
     }
 
     private void enqueue200(String body) {
@@ -410,5 +417,45 @@ class ZhipuEmbeddingServiceImplTest {
                     assertThat(msg).doesNotContain("Bearer ");
                     assertThat(msg).doesNotContain("test-key");
                 });
+    }
+
+    // ---------- §8 限流退避可注入等待策略 ----------
+
+    @Test
+    void shouldInvokeInjectableSleeperOnceOnSingleRetry() {
+        AtomicInteger sleepCount = new AtomicInteger();
+        LongConsumer sleeper = ms -> sleepCount.addAndGet((int) ms);
+        server.enqueue(new MockResponse().setResponseCode(429).setBody("{\"error\":\"rate\"}"));
+        enqueue200(successBody(1, 1024));
+
+        ZhipuEmbeddingServiceImpl s = serviceWithSleeper(1024, 16, 2, sleeper);
+        List<Float> v = s.embed("x");
+
+        assertThat(v).hasSize(1024);
+        assertThat(server.getRequestCount()).isEqualTo(2);
+        // 仅重试 1 次 → sleeper 被调用 1 次，且退避基数 500ms 被正确传入
+        assertThat(sleepCount.get()).isEqualTo(500);
+    }
+
+    @Test
+    void shouldInvokeInjectableSleeperWithExponentialBackoff() {
+        AtomicInteger callCount = new AtomicInteger();
+        StringBuilder seen = new StringBuilder();
+        LongConsumer sleeper = ms -> {
+            callCount.incrementAndGet();
+            seen.append(ms).append(",");
+        };
+        server.enqueue(new MockResponse().setResponseCode(500).setBody("{\"error\":\"boom\"}"));
+        server.enqueue(new MockResponse().setResponseCode(500).setBody("{\"error\":\"boom\"}"));
+        enqueue200(successBody(1, 1024));
+
+        ZhipuEmbeddingServiceImpl s = serviceWithSleeper(1024, 16, 2, sleeper);
+        List<Float> v = s.embed("x");
+
+        assertThat(v).hasSize(1024);
+        assertThat(server.getRequestCount()).isEqualTo(3);
+        // attempt=0 → 500*2^0=500ms；attempt=1 → 500*2^1=1000ms
+        assertThat(callCount.get()).isEqualTo(2);
+        assertThat(seen.toString()).isEqualTo("500,1000,");
     }
 }

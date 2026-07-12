@@ -16,6 +16,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.LongConsumer;
 
 /**
  * 智谱（Zhipu）真实 Embedding 实现。
@@ -56,12 +57,29 @@ public class ZhipuEmbeddingServiceImpl implements EmbeddingService {
     private final int batchSize;
     private final int maxRetries;
     private final ObjectMapper objectMapper;
+    /** 限流退避等待策略（可注入，便于单测；默认 Thread.sleep）。 */
+    private final LongConsumer backoffSleeper;
 
+    /**
+     * 默认构造（向后兼容）：使用 {@link Thread#sleep(long)} 作为退避等待策略。
+     */
     public ZhipuEmbeddingServiceImpl(RestClient restClient,
                                      String model,
                                      int dimensions,
                                      int batchSize,
                                      int maxRetries) {
+        this(restClient, model, dimensions, batchSize, maxRetries, defaultSleeper());
+    }
+
+    /**
+     * 可注入退避策略的构造：便于在单测中传入零等待 / 计数型 sleeper，避免真实 sleep 拖慢测试。
+     */
+    public ZhipuEmbeddingServiceImpl(RestClient restClient,
+                                     String model,
+                                     int dimensions,
+                                     int batchSize,
+                                     int maxRetries,
+                                     LongConsumer backoffSleeper) {
         if (restClient == null) {
             throw new IllegalArgumentException("RestClient 不能为空（真实 Embedding 需要有效的 API 配置与 Key）");
         }
@@ -87,9 +105,22 @@ public class ZhipuEmbeddingServiceImpl implements EmbeddingService {
         this.dimensions = dimensions;
         this.batchSize = batchSize;
         this.maxRetries = maxRetries;
+        this.backoffSleeper = backoffSleeper != null ? backoffSleeper : defaultSleeper();
         this.objectMapper = new ObjectMapper();
         // 允许解析 NaN/Infinity 字面量，以便随后显式校验并拒绝（真实 API 不应返回此类值）。
         this.objectMapper.enable(JsonParser.Feature.ALLOW_NON_NUMERIC_NUMBERS);
+    }
+
+    /** 默认退避等待策略：Thread.sleep，遇到中断时恢复中断标志并抛出异常。 */
+    private static LongConsumer defaultSleeper() {
+        return ms -> {
+            try {
+                Thread.sleep(ms);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("Embedding 重试被中断", ie);
+            }
+        };
     }
 
     @Override
@@ -173,12 +204,7 @@ public class ZhipuEmbeddingServiceImpl implements EmbeddingService {
                 long backoff = RETRY_BASE_BACKOFF_MS * (1L << attempt); // 500 * 2^attempt
                 log.warn("智谱 Embedding 调用可重试失败（第 {} 次），{}ms 后重试：{}",
                         attempt + 1, backoff, e.getMessage());
-                try {
-                    Thread.sleep(backoff);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    throw new RuntimeException("Embedding 重试被中断", ie);
-                }
+                backoffSleeper.accept(backoff);
                 attempt++;
             }
         }
