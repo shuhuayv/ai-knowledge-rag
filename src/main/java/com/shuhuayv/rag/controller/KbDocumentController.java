@@ -12,6 +12,7 @@ import com.shuhuayv.rag.entity.KbVectorRecord;
 import com.shuhuayv.rag.service.ChunkService;
 import com.shuhuayv.rag.service.DocumentIndexService;
 import com.shuhuayv.rag.service.DocumentParseService;
+import com.shuhuayv.rag.service.DocumentUploadResult;
 import com.shuhuayv.rag.service.KbDocumentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -41,11 +42,14 @@ public class KbDocumentController {
         this.documentIndexService = documentIndexService;
     }
 
-    @Operation(summary = "上传文档", description = "上传 TXT 或 PDF 文件到知识库")
+    @Operation(summary = "上传文档",
+            description = "上传 TXT 或 PDF 文件到知识库。内容级幂等：若文件内容（raw bytes）与已有 active 文档相同，"
+                    + "不会重复入库，直接返回已有文档且 duplicate=true（HTTP 仍为 200，重复上传不是业务错误）")
     @PostMapping("/upload")
     public ApiResponse<DocumentUploadResponse> uploadDocument(
             @Parameter(description = "文件") @RequestParam("file") MultipartFile file) {
-        KbDocument document = kbDocumentService.uploadDocument(file);
+        DocumentUploadResult result = kbDocumentService.uploadDocument(file);
+        KbDocument document = result.document();
         DocumentUploadResponse response = DocumentUploadResponse.builder()
                 .id(document.getId())
                 .fileName(document.getFileName())
@@ -53,6 +57,7 @@ public class KbDocumentController {
                 .fileSize(document.getFileSize())
                 .status(document.getStatus())
                 .createdAt(document.getCreatedAt())
+                .duplicate(result.duplicate())
                 .build();
         return ApiResponse.success(response);
     }

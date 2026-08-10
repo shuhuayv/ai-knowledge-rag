@@ -50,6 +50,11 @@ app:
     # 注：以下 dimension 为 legacy 配置，标注为不再作为真实维度来源。
     # 真实模式维度由 EmbeddingService.dimensions()（zhipu=1024）决定。
     dimension: ${EMBEDDING_DIMENSION:384}
+  migration:
+    # 历史数据 content_sha256 回填开关（PR-2A ContentHashBackfillRunner）。
+    # 默认 false：本轮默认关闭，禁止在真实数据库上运行。
+    # 仅显式置 true（如 APP_MIGRATION_BACKFILL_CONTENT_HASH=true）时回填器才会执行。
+    backfill-content-hash: ${APP_MIGRATION_BACKFILL_CONTENT_HASH:false}
 
 # ============================================================
 # AI Embedding 配置（双模式：mock / zhipu）
