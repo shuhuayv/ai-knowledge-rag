@@ -11,6 +11,7 @@ import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -272,6 +273,103 @@ class KbDocumentUploadDedupTest {
         verify(mapper, times(1)).insert((KbDocument) any());
     }
 
+    /**
+     * UPLOAD-15：status 相同、createdAt 完全相同 → 最终 tie-breaker 必须是 id ASC。
+     * 输入顺序故意 id=5 在前、id=3 在后，期望 id=3（更小）被选中，
+     * 直接证明 id ASC 是「同 status + 同 createdAt」下的决定性比较键。
+     */
+    @Test
+    void upload15_tieBreaksByIdAscWhenStatusAndCreatedAtIdentical() {
+        LocalDateTime sameTime = LocalDateTime.of(2026, 8, 10, 12, 0, 0);
+        KbDocument id5 = doc(5L, "UPLOADED", sameTime);
+        KbDocument id3 = doc(3L, "UPLOADED", sameTime);
+        when(mapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(id5, id3));
+
+        KbDocument winner = service.findPreferredActiveDuplicate("same-hash");
+
+        assertThat(winner).isSameAs(id3);
+    }
+
+    // ---------------- 上传失败 cleanup 不变量（BLOCKER-1，真实磁盘断言）----------------
+
+    /**
+     * UPLOAD-F1：duplicate lookup 抛 RuntimeException → 清理本次新落盘文件 → rethrow 原异常。
+     * 使用 @TempDir 真实磁盘断言：uploadDir 中无任何本次文件残留。
+     */
+    @Test
+    void uploadF1_duplicateLookupFailureCleansUpAndRethrowsOriginal() throws Exception {
+        Path uploadDir = Files.createDirectory(tempDir.resolve("uploads-f1"));
+        ReflectionTestUtils.setField(service, "uploadDir", uploadDir.toString());
+
+        RuntimeException original = new RuntimeException("db lookup exploded");
+        when(mapper.selectList(any(LambdaQueryWrapper.class))).thenThrow(original);
+
+        assertThatThrownBy(() -> service.uploadDocument(txt("f1.txt", "f1-content")))
+                .isSameAs(original);
+        verify(mapper, never()).insert((KbDocument) any());
+        try (Stream<Path> paths = Files.list(uploadDir)) {
+            assertThat(paths).isEmpty();
+        }
+    }
+
+    /**
+     * UPLOAD-F2：generic insert failure（DataAccessException）→ 清理本次新落盘文件 → rethrow 原异常。
+     */
+    @Test
+    void uploadF2_genericInsertFailureCleansUpAndRethrowsOriginal() throws Exception {
+        Path uploadDir = Files.createDirectory(tempDir.resolve("uploads-f2"));
+        ReflectionTestUtils.setField(service, "uploadDir", uploadDir.toString());
+
+        when(mapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(Collections.emptyList());
+        DataAccessResourceFailureException original =
+                new DataAccessResourceFailureException("connection lost");
+        when(mapper.insert((KbDocument) any())).thenThrow(original);
+
+        assertThatThrownBy(() -> service.uploadDocument(txt("f2.txt", "f2-content")))
+                .isSameAs(original);
+        try (Stream<Path> paths = Files.list(uploadDir)) {
+            assertThat(paths).isEmpty();
+        }
+    }
+
+    /**
+     * UPLOAD-F3：DuplicateKeyException + requery none → cleanup → rethrow 原 DuplicateKeyException。
+     */
+    @Test
+    void uploadF3_duplicateKeyRethrowCleansUpAndRethrowsOriginal() throws Exception {
+        Path uploadDir = Files.createDirectory(tempDir.resolve("uploads-f3"));
+        ReflectionTestUtils.setField(service, "uploadDir", uploadDir.toString());
+
+        when(mapper.selectList(any(LambdaQueryWrapper.class)))
+                .thenReturn(Collections.emptyList(), Collections.emptyList());
+        DuplicateKeyException original = new DuplicateKeyException("dup key on (content_sha256,is_deleted)");
+        when(mapper.insert((KbDocument) any())).thenThrow(original);
+
+        assertThatThrownBy(() -> service.uploadDocument(txt("f3.txt", "f3-content")))
+                .isSameAs(original);
+        try (Stream<Path> paths = Files.list(uploadDir)) {
+            assertThat(paths).isEmpty();
+        }
+    }
+
+    /**
+     * UPLOAD-F4：transferTo 写部分文件后抛 IOException → 请求失败 → 部分文件被移除。
+     */
+    @Test
+    void uploadF4_transferToPartialWriteFailureRemovesPartialFile() throws Exception {
+        Path uploadDir = Files.createDirectory(tempDir.resolve("uploads-f4"));
+        ReflectionTestUtils.setField(service, "uploadDir", uploadDir.toString());
+
+        MultipartFile partialWrite = new TransferFailingMultipartFile("f4.txt", "f4-partial-content");
+
+        assertThatThrownBy(() -> service.uploadDocument(partialWrite))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("文件上传失败");
+        try (Stream<Path> paths = Files.list(uploadDir)) {
+            assertThat(paths).isEmpty();
+        }
+    }
+
     private static KbDocument doc(Long id, String status, LocalDateTime createdAt) {
         KbDocument d = new KbDocument();
         d.setId(id);
@@ -372,6 +470,55 @@ class KbDocumentUploadDedupTest {
 
         public void transferTo(Path dest) throws IOException {
             Files.deleteIfExists(dest);
+        }
+    }
+
+    /** transferTo 先写入部分字节再抛 IOException，模拟磁盘中断导致的 partial-file 场景。 */
+    static class TransferFailingMultipartFile implements MultipartFile {
+        private final String name;
+        private final byte[] content;
+
+        TransferFailingMultipartFile(String name, String content) {
+            this.name = name;
+            this.content = content.getBytes();
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public String getOriginalFilename() {
+            return name;
+        }
+
+        public String getContentType() {
+            return "text/plain";
+        }
+
+        public boolean isEmpty() {
+            return content.length == 0;
+        }
+
+        public long getSize() {
+            return content.length;
+        }
+
+        public byte[] getBytes() {
+            return content;
+        }
+
+        public InputStream getInputStream() {
+            return new ByteArrayInputStream(content);
+        }
+
+        public void transferTo(File dest) throws IOException {
+            // 先写一半字节，再抛 IOException：目标路径上已残留部分文件。
+            Files.write(dest.toPath(), java.util.Arrays.copyOf(content, content.length / 2));
+            throw new IOException("simulated partial transfer failure");
+        }
+
+        public void transferTo(Path dest) throws IOException {
+            transferTo(dest.toFile());
         }
     }
 }

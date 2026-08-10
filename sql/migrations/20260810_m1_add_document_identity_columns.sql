@@ -1,6 +1,6 @@
 -- ============================================================
 -- M1：kb_document 新增「文档内容身份」列（PR-2A Document Identity）
--- 日期：2026-08-10
+-- 日期：2026-08-10（2026-08-11 修正：新增列定义校验，fail closed）
 -- 关联：RAG PR-2A / feature/content-dedup
 --
 -- 🔴 NOT EXECUTED IN THIS ROUND —— 本轮仅提交文件与离线审查，禁止真实执行。
@@ -10,6 +10,14 @@
 --          重复执行任意次结果一致，已存在的列打印 SKIP 且不做任何操作。
 --          注：MySQL 8.0 不支持 `ADD COLUMN IF NOT EXISTS`（该语法为 MariaDB 扩展），
 --          因此必须使用 INFORMATION_SCHEMA + PREPARE/EXECUTE。
+--
+-- 【schema drift 校验（fail closed）】列已存在不能只输出 SKIP —— 最终自检必须确认定义：
+--   - content_sha256        CHAR(64)   NULLABLE
+--   - is_deleted            BIGINT     NOT NULL DEFAULT 0
+--   - canonical_document_id BIGINT     NULLABLE
+--   - dedup_batch           VARCHAR(32) NULLABLE
+--   任一列定义不符 → SIGNAL SQLSTATE '45000' 明确失败（ABORT），要求人工检查；
+--   绝不自动 ALTER 修复未知历史 schema，也绝不 SKIP 当成功。
 --
 -- 【破坏性】NO。纯 additive：只有 ALTER TABLE ... ADD COLUMN。
 --          零 DROP / 零 TRUNCATE / 零 DELETE / 零 UPDATE；不修改任何既有行的既有列；
@@ -104,6 +112,51 @@ SET @ddl := IF(@col_exists = 0,
     'ALTER TABLE kb_document ADD COLUMN dedup_batch VARCHAR(32) NULL COMMENT ''去重治理批次号（PR-3 写入），用于审计回溯''',
     'SELECT ''SKIP: kb_document.dedup_batch already exists'' AS migration_note');
 PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- ------------------------------------------------------------
+-- 最终自检：列定义校验（fail closed）
+-- 任一目标列存在但定义与预期不符 → SIGNAL 中止，要求人工检查。
+-- 只做 definition validation，不自动 ALTER 修复 / 不自动 DROP。
+-- ------------------------------------------------------------
+DROP PROCEDURE IF EXISTS sp_m1_verify_document_identity_columns;
+
+DELIMITER $$
+
+CREATE PROCEDURE sp_m1_verify_document_identity_columns()
+proc_label: BEGIN
+    DECLARE v_schema     VARCHAR(64);
+    DECLARE v_bad        INT DEFAULT 0;
+    DECLARE v_msg        VARCHAR(128);
+
+    SET v_schema = DATABASE();
+
+    -- 校验 4 列定义（列存在但定义不符即计入 v_bad）
+    SELECT COUNT(*) INTO v_bad
+      FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = v_schema
+       AND TABLE_NAME   = 'kb_document'
+       AND COLUMN_NAME IN ('content_sha256','is_deleted','canonical_document_id','dedup_batch')
+       AND (
+            (COLUMN_NAME = 'content_sha256'        AND (COLUMN_TYPE <> 'char(64)'      OR IS_NULLABLE <> 'YES'))
+         OR (COLUMN_NAME = 'is_deleted'            AND (COLUMN_TYPE <> 'bigint'        OR IS_NULLABLE <> 'NO'  OR COLUMN_DEFAULT <> '0'))
+         OR (COLUMN_NAME = 'canonical_document_id' AND (COLUMN_TYPE <> 'bigint'        OR IS_NULLABLE <> 'YES'))
+         OR (COLUMN_NAME = 'dedup_batch'           AND (COLUMN_TYPE <> 'varchar(32)'   OR IS_NULLABLE <> 'YES'))
+       );
+
+    IF v_bad > 0 THEN
+        SET v_msg = CONCAT('M1 VERIFY ABORTED: ', v_bad,
+                           ' identity column(s) exist but definition mismatch. Manual inspection required. No auto-fix.');
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = v_msg;
+    END IF;
+
+    SELECT 'OK: kb_document identity columns definition verified' AS migration_note;
+END$$
+
+DELIMITER ;
+
+CALL sp_m1_verify_document_identity_columns();
+
+DROP PROCEDURE IF EXISTS sp_m1_verify_document_identity_columns;
 
 -- ------------------------------------------------------------
 -- 执行后自检（只读）

@@ -10,6 +10,7 @@ import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.boot.ApplicationArguments;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -21,6 +22,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -114,5 +116,46 @@ class ContentHashBackfillRunnerTest {
         assertThat(stats.total()).isEqualTo(1);
         assertThat(stats.alreadyFilled()).isEqualTo(1);
         assertThat(stats.filled()).isEqualTo(0);
+    }
+
+    /**
+     * BACKFILL-06：开关关闭（enabled=false）时，{@code run(...)} 必须完全不触碰 mapper。
+     * 这是 BACKFILL-01 的直接证据：ApplicationArguments 可以 mock。
+     */
+    @Test
+    void backfill06_disabledRunnerDoesNotTouchMapper() {
+        ContentHashBackfillRunner disabledRunner = new ContentHashBackfillRunner(mapper, false);
+        ApplicationArguments args = mock(ApplicationArguments.class);
+
+        disabledRunner.run(args);
+
+        verifyNoInteractions(mapper);
+    }
+
+    /**
+     * BACKFILL-07：backfill 幂等 —— 连续 executeBackfill()×2。
+     * 第一次 selectList 返回一个 NULL hash doc、第一次 update 返回 1；
+     * 第二次 selectList 返回 empty → first.filled=1、second.filled=0、总 update=1。
+     */
+    @Test
+    void backfill07_secondRunIsIdempotentWithNoUpdates() throws Exception {
+        Path file = tempDir.resolve("doc3.txt");
+        Files.writeString(file, "idempotent content");
+        KbDocument doc = new KbDocument();
+        doc.setId(5L);
+        doc.setFilePath(file.toString());
+
+        when(mapper.selectList(any(LambdaQueryWrapper.class)))
+                .thenReturn(List.of(doc), Collections.emptyList());
+        when(mapper.update(any(), any(LambdaUpdateWrapper.class))).thenReturn(1);
+
+        ContentHashBackfillRunner.BackfillStats first = runner.executeBackfill();
+        ContentHashBackfillRunner.BackfillStats second = runner.executeBackfill();
+
+        assertThat(first.filled()).isEqualTo(1);
+        assertThat(second.filled()).isEqualTo(0);
+        assertThat(second.total()).isEqualTo(0);
+        // 整个过程中条件更新只发生 1 次（第二次运行没有任何待处理行）。
+        verify(mapper, times(1)).update(any(), any(LambdaUpdateWrapper.class));
     }
 }

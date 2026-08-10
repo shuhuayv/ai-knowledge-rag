@@ -101,13 +101,22 @@ public class KbDocumentServiceImpl extends ServiceImpl<KbDocumentMapper, KbDocum
         // ---------- 阶段 2 · 落盘（先落盘后计算 hash；禁止先建 DB 行）----------
         String storedFilename = UUID.randomUUID().toString() + "_" + originalFilename;
         Path uploadPath = Paths.get(uploadDir).toAbsolutePath().normalize();
-        Path filePath;
+        Path filePath = null;
         try {
             Files.createDirectories(uploadPath);
             filePath = uploadPath.resolve(storedFilename);
             file.transferTo(filePath.toFile());
         } catch (IOException e) {
+            // transferTo 可能已写出部分文件：filePath 已确定则 best-effort 删除，
+            // 原 IOException 仍是主异常 cause；清理失败以 suppressed 挂在其上（不覆盖根因）。
             log.error("Failed to upload file", e);
+            if (filePath != null) {
+                try {
+                    Files.deleteIfExists(filePath);
+                } catch (IOException cleanupFailure) {
+                    e.addSuppressed(cleanupFailure);
+                }
+            }
             throw new RuntimeException("文件上传失败", e);
         }
 
@@ -131,7 +140,16 @@ public class KbDocumentServiceImpl extends ServiceImpl<KbDocumentMapper, KbDocum
         }
 
         // ---------- 阶段 4 · 内容去重（只查 MySQL，绝不访问 Qdrant）----------
-        KbDocument existing = findPreferredActiveDuplicate(contentSha256);
+        // 路径 A：去重查询自身失败（如 MySQL 不可用）→ 清理本次新写文件 → rethrow 原 DB 异常。
+        // 此时 hash 已算完、文件已落盘、DB 行未建，必须保证不留下孤儿文件。
+        KbDocument existing;
+        try {
+            existing = findPreferredActiveDuplicate(contentSha256);
+        } catch (RuntimeException lookupFailure) {
+            log.error("内容去重查询失败，清理本次新落盘文件后上抛，path={}, contentSha256={}",
+                    filePath, contentSha256, lookupFailure);
+            throw cleanupOnFailure(filePath, lookupFailure);
+        }
         if (existing != null) {
             cleanupUploadedFile(filePath);
             log.info("Duplicate upload detected, returning existing document, id={}, contentSha256={}",
@@ -156,15 +174,24 @@ public class KbDocumentServiceImpl extends ServiceImpl<KbDocumentMapper, KbDocum
             KbDocument winner = findPreferredActiveDuplicate(contentSha256);
             if (winner == null) {
                 // 重查仍为空 → 不能断定是内容重复，可能是其他 DB 约束冲突。
-                // 必须原样上抛，绝不能把所有 DuplicateKeyException 都当 content duplicate 吞掉。
-                log.error("DuplicateKeyException 无法归因为内容重复（重查 active 行为空），原样上抛，contentSha256={}",
-                        contentSha256, race);
-                throw race;
+                // 路径 C：清理本次新写文件后原样上抛原 DuplicateKeyException，
+                // 绝不把所有 DuplicateKeyException 都当 content duplicate 吞掉。
+                log.error("DuplicateKeyException 无法归因为内容重复（重查 active 行为空），"
+                                + "清理本次新落盘文件后原样上抛，path={}, contentSha256={}",
+                        filePath, contentSha256, race);
+                throw cleanupOnFailure(filePath, race);
             }
             cleanupUploadedFile(filePath);
             log.warn("并发重复上传命中 DB unique 约束，返回已有文档，id={}, contentSha256={}",
                     winner.getId(), contentSha256);
             return new DocumentUploadResult(winner, true);
+        } catch (RuntimeException saveFailure) {
+            // 路径 B：普通 save 失败（非 DuplicateKeyException 的 RuntimeException /
+            // DataAccessException，如 mapper.insert 抛 DataAccessResourceFailureException）。
+            // 本次新写文件尚无人认领 → 必须清理后 rethrow 原异常，禁止留下孤儿文件。
+            log.error("保存文档失败，清理本次新落盘文件后上抛，path={}, contentSha256={}",
+                    filePath, contentSha256, saveFailure);
+            throw cleanupOnFailure(filePath, saveFailure);
         }
 
         log.info("Document uploaded, id={}, fileName={}, contentSha256={}",
@@ -250,6 +277,33 @@ public class KbDocumentServiceImpl extends ServiceImpl<KbDocumentMapper, KbDocum
             log.error("重复上传临时文件清理失败，可能残留孤儿文件，path={}", path, e);
             throw new IllegalStateException("重复上传清理失败，可能残留孤儿文件: " + path, e);
         }
+    }
+
+    /**
+     * 上传失败路径的统一清理助手（BLOCKER-1 不变量）。
+     *
+     * <p>语义：清理本次新落盘文件（best-effort），但<b>绝不</b>让清理失败覆盖真正的 DB 根因。
+     * 若清理失败，将其作为 {@code suppressed} 挂在原始异常上，然后原样返回原始异常供调用方抛出。</p>
+     *
+     * <p>适用路径：</p>
+     * <ul>
+     *   <li>A：{@code findPreferredActiveDuplicate} 查询抛 RuntimeException / DataAccessException；</li>
+     *   <li>B：{@code save} 抛非 DuplicateKeyException 的 RuntimeException / DataAccessException；</li>
+     *   <li>C：{@code save} 抛 DuplicateKeyException 且重查 winner == null。</li>
+     * </ul>
+     *
+     * @param path     本次新落盘的文件路径（可为 null，此时视为无需清理）
+     * @param original 真正的失败根因，绝不能被覆盖
+     * @return 原异常（调用方应 {@code throw} 它）
+     */
+    private RuntimeException cleanupOnFailure(Path path, RuntimeException original) {
+        try {
+            cleanupUploadedFile(path);
+        } catch (RuntimeException cleanupFailure) {
+            // 禁止 cleanup 覆盖 DB 根因：清理失败仅作为 suppressed 附加，主异常保持不变。
+            original.addSuppressed(cleanupFailure);
+        }
+        return original;
     }
 
     @Override
