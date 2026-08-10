@@ -50,6 +50,28 @@ class FileHashUtilTest {
         assertThat(FileHashUtil.sha256(f1)).isEqualTo(FileHashUtil.sha256(f2));
     }
 
+    /**
+     * HASH-03：中文 filename 可正常 hash，无编码异常，且 filename 不参与 hash。
+     * 同一字节内容，中文文件名（中文文档.txt）与 ASCII 文件名（doc.txt）→ 相同 hash，
+     * 与 HASH-04「filename 无关」语义一致。
+     */
+    @Test
+    void hash03_chineseFilenameHashesSameAsAsciiFilename() throws Exception {
+        Path chineseName = tempDir.resolve("中文文档.txt");
+        Path asciiName = tempDir.resolve("doc.txt");
+        byte[] bytes = "知识库内容-RAG".getBytes(StandardCharsets.UTF_8);
+        Files.write(chineseName, bytes);
+        Files.write(asciiName, bytes);
+
+        String hashChinese = FileHashUtil.sha256(chineseName);
+        String hashAscii = FileHashUtil.sha256(asciiName);
+
+        // 中文文件名不抛编码异常，输出仍为 64 位小写 hex
+        assertThat(hashChinese).matches("^[0-9a-f]{64}$");
+        // 同 bytes + 不同 filename（中文 vs ASCII）→ 相同 hash（filename 不进 hash）
+        assertThat(hashChinese).isEqualTo(hashAscii);
+    }
+
     @Test
     void hash03_emptyFileHasKnownHash() throws Exception {
         Path f = tempDir.resolve("empty.bin");

@@ -26,6 +26,7 @@ import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -114,6 +115,37 @@ class KbDocumentUploadDedupTest {
         assertThat(result.document().getId()).isEqualTo(2L);
         // 命中重复：绝不再写入新 DB 行。
         verify(mapper, never()).insert((KbDocument) any());
+    }
+
+    /**
+     * UPLOAD-05：duplicate 后本次新落盘文件必须已删除（磁盘不残留孤儿 UUID 副本）。
+     * 使用独立 uploads 子目录，duplicate 分支触发 cleanupUploadedFile 后，
+     * 断言 uploads/ 目录中不再有任何文件（无新增 UUID 文件残留）。
+     */
+    @Test
+    void upload05_duplicateUploadDeletesNewlyWrittenFile() throws Exception {
+        // 独立 uploads 子目录作为 uploadDir，便于精确断言「目录内无新增文件」。
+        Path uploadDir = Files.createDirectory(tempDir.resolve("uploads"));
+        ReflectionTestUtils.setField(service, "uploadDir", uploadDir.toString());
+
+        String content = "dup-cleanup";
+        Path probe = tempDir.resolve("probe.txt");
+        Files.writeString(probe, content);
+        String hash = FileHashUtil.sha256(probe);
+
+        KbDocument existing = new KbDocument();
+        existing.setId(2L);
+        existing.setStatus("UPLOADED");
+        existing.setContentSha256(hash);
+        when(mapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(existing));
+
+        DocumentUploadResult result = service.uploadDocument(txt("b.txt", content));
+
+        assertThat(result.duplicate()).isTrue();
+        // 关键断言：本次新落盘文件已被删除，uploads/ 目录为空（不会每次新增 UUID 副本）。
+        try (Stream<Path> paths = Files.list(uploadDir)) {
+            assertThat(paths).isEmpty();
+        }
     }
 
     @Test
