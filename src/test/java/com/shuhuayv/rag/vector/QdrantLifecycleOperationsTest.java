@@ -403,4 +403,86 @@ class QdrantLifecycleOperationsTest {
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("Qdrant 不可用");
     }
+
+    // ==================== QDRANT-15 / 16 / 17 / 18：requestedCount / acceptedCount 可观测性（F-3 / F-4） ====================
+
+    @Test
+    @DisplayName("QDRANT-15 deletePoints 全合法输入：requestedCount == acceptedCount == 发送数")
+    void qdrant15_allValidRequestedEqualsAccepted() throws Exception {
+        enqueueJson(OK_DELETE_BODY);
+
+        QdrantOperationResult result = service().deletePoints("col", List.of(UUID_V3, UUID_V4), true);
+
+        assertThat(result.requestedCount()).isEqualTo(2);
+        assertThat(result.acceptedCount()).isEqualTo(2);
+
+        JsonNode points = bodyOf(server.takeRequest()).path("points");
+        assertThat(points).hasSize(2);
+        assertThat(result.isSkipped()).isFalse();
+    }
+
+    @Test
+    @DisplayName("QDRANT-16 deletePoints 部分非法输入：requestedCount=4, acceptedCount=2（可观测非法被过滤）")
+    void qdrant16_partialInvalidRequestedAndAccepted() throws Exception {
+        enqueueJson(OK_DELETE_BODY);
+
+        List<String> mixed = new ArrayList<>(Arrays.asList(
+                UUID_V3,   // 合法
+                "2_3_v1",  // 非法
+                null,      // 非法
+                UUID_V4)); // 合法
+
+        QdrantOperationResult result = service().deletePoints("col", mixed, true);
+
+        // 关键可观测性断言（F-3）：调用方现在能看到"4 个请求、2 个被接受"
+        assertThat(result.requestedCount()).isEqualTo(4);
+        assertThat(result.acceptedCount()).isEqualTo(2);
+        assertThat(result.requestedCount())
+                .as("requestedCount 必须 > acceptedCount 以暴露部分非法被过滤")
+                .isGreaterThan(result.acceptedCount());
+
+        JsonNode points = bodyOf(server.takeRequest()).path("points");
+        assertThat(points).hasSize(2);
+        List<String> sent = new ArrayList<>();
+        points.forEach(node -> sent.add(node.asText()));
+        assertThat(sent).containsExactly(UUID_V3, UUID_V4);
+        assertThat(result.isSkipped()).isFalse();
+    }
+
+    @Test
+    @DisplayName("QDRANT-17 deletePoints 重复合法 ID：requestedCount=3, acceptedCount=2（LinkedHashSet 去重）")
+    void qdrant17_duplicateValidIdsDeduplicated() throws Exception {
+        enqueueJson(OK_DELETE_BODY);
+
+        // 两个 UUID_V3 是同一确定 ID，去重后应只剩 1 个
+        List<String> dup = new ArrayList<>(Arrays.asList(UUID_V3, UUID_V3, UUID_V4));
+
+        QdrantOperationResult result = service().deletePoints("col", dup, true);
+
+        assertThat(result.requestedCount()).isEqualTo(3);
+        assertThat(result.acceptedCount()).isEqualTo(2);
+
+        JsonNode points = bodyOf(server.takeRequest()).path("points");
+        assertThat(points).hasSize(2);
+        List<String> sent = new ArrayList<>();
+        points.forEach(node -> sent.add(node.asText()));
+        assertThat(sent).containsExactly(UUID_V3, UUID_V4);
+        assertThat(result.isSkipped()).isFalse();
+    }
+
+    @Test
+    @DisplayName("QDRANT-18 deletePoints 全非法输入：requestedCount=N, acceptedCount=0, status=skipped, 0 次 HTTP")
+    void qdrant18_allInvalidSkippedWithZeroHttp() throws Exception {
+        QdrantVectorServiceImpl svc = service();
+
+        QdrantOperationResult allInvalid =
+                svc.deletePoints("col", Arrays.asList(null, "  ", "2_3_v1"), true);
+
+        assertThat(server.getRequestCount()).isZero();
+        assertThat(allInvalid.requestedCount()).isEqualTo(3);
+        assertThat(allInvalid.acceptedCount()).isZero();
+        assertThat(allInvalid.status()).isEqualTo("skipped");
+        assertThat(allInvalid.isSkipped()).isTrue();
+        assertThat(allInvalid.operationId()).isNull();
+    }
 }

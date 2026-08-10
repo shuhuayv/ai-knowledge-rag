@@ -8,7 +8,7 @@ method signature or behavior was changed.
 
 | Method | Returns | Notes |
 |---|---|---|
-| `deletePoints(coll, pointIds, wait)` | `QdrantOperationResult` | UUID v3 / v4 both deletable |
+| `deletePoints(coll, pointIds, wait)` | `QdrantOperationResult` | UUID v3 / v4 both deletable; input de-duplicated (`LinkedHashSet`) |
 | `deletePointsByDocumentId(coll, documentId, wait)` | `QdrantOperationResult` | filter by `documentId` |
 | `countPoints(coll)` | `long` | total point count |
 | `countPointsByDocumentId(coll, documentId)` | `long` | count filtered by `documentId` |
@@ -28,15 +28,32 @@ method signature or behavior was changed.
    **0 hits** by Qdrant — a dangerous inconsistency (delete returns `status=completed`
    but removes nothing). The implementation always emits the numeric form; callers must
    also store `documentId` as a number.
-3. **Return value has no `deletedCount`.** `QdrantOperationResult` carries only
-   `operationId` + `status` (`completed` / `skipped`). The number of deleted points must
-   be computed by the caller as `countBefore - countAfter`. The Qdrant delete response
-   does not report a deleted count.
+3. **Return value carries `requestedCount` + `acceptedCount`, but no `deletedCount`.**
+   `QdrantOperationResult` = `(operationId, status, requestedCount, acceptedCount)`.
+   - `operationId` / `status` come from the Qdrant HTTP response.
+   - `requestedCount` = size of the caller's original `pointIds` list (0 if null/empty).
+   - `acceptedCount` = number of IDs that passed the client-side UUID check **and** were
+     de-duplicated (via `LinkedHashSet`), i.e. the count actually sent to Qdrant.
+   - The number of deleted points must still be computed by the caller as
+     `countBefore - countAfter` — Qdrant's delete response does **not** report a deleted count.
+   - **Observability improvement (this round):** previously a request with some invalid IDs
+     returned `status=completed` with no signal about how many were filtered. Now
+     `requestedCount != acceptedCount` makes "partial invalid IDs silently filtered" visible
+     to the caller (e.g. requested=4, accepted=2). When `acceptedCount == 0`, the operation is
+     `status=skipped` and issued **no** HTTP request.
 
-Other rules: `wait` is a pass-through (callers pass `true` for governance — delete is
-immediately visible on the next count, no sleep/retry). An empty filtered set issues
-**no HTTP request**. `deletePointsByDocumentId(null)` throws `IllegalArgumentException`
-with zero HTTP calls.
+4. **Point ID contract is UUID-string only (this round).** `scrollPoints` / `ScrollPage`
+   assume Point IDs are UUID strings. Qdrant natively also supports unsigned-integer Point
+   IDs, but that form is **out of contract** here: `scrollPoints` does not assume
+   `nextOffset` is numeric and performs no numeric offset back-tracing. This component is
+   **not** a full generic Qdrant SDK — it serves only this project's existing UUID Point ID
+   scenario.
+
+Other rules: `wait=true` makes the delete visible on the next `countPoints` **in the local
+single-node Qdrant 1.18.2 smoke** — observed immediately, no sleep/retry needed. This was
+**only** verified on a single-node local instance; multi-node / replicated / high-load
+visibility is NOT tested and is out of contract. An empty filtered set issues **no HTTP
+request**. `deletePointsByDocumentId(null)` throws `IllegalArgumentException` with zero HTTP calls.
 
 ## Temp-collection smoke (real Qdrant)
 
@@ -45,10 +62,12 @@ Run only against ephemeral `kb_smoke_tmp_<timestamp>` collections; production
 and remained unchanged before/after. Gated by `-Dqdrant.smoke=true`; skipped by default
 `mvn test` (CI has no Qdrant).
 
-- `{"value": 6}` → count = 3 ; `{"value": "6"}` → count = 0 (confirms the JSON-number
-  constraint above at the HTTP layer).
-- `wait=true` delete: the post-delete count reflects the new state immediately — no
-  sleep or retry needed. No conflict with the design.
+- `{"value": 900001}` → count = 1 ; `{"value": "900001"}` → count = 0
+  (after writing 1 synthetic point with `documentId = 900001`; confirms the JSON-number
+  constraint above at the HTTP layer — string form yields 0 hits).
+- `wait=true` delete on the local Qdrant 1.18.2 single-node smoke: the post-delete count
+  reflects the new state immediately — no sleep or retry needed. **Scope:** verified only
+  on this single-node local instance; multi-node / replicated / high-load NOT tested.
 
 ## Snapshot gate (BK-1)
 

@@ -204,8 +204,11 @@ class QdrantLifecycleSmokeIT {
         QdrantOperationResult result = svc.deletePoints(
                 TMP_COLLECTION, java.util.Arrays.asList(P1_V3, P3_V4, "2_3_v1", null), true);
         System.out.println("[SMOKE][3] deletePoints operationId=" + result.operationId()
-                + " status=" + result.status());
+                + " status=" + result.status()
+                + " requested=" + result.requestedCount() + " accepted=" + result.acceptedCount());
         assertThat(result.isSkipped()).isFalse();
+        assertThat(result.requestedCount()).as("混合输入请求 4 个").isEqualTo(4);
+        assertThat(result.acceptedCount()).as("2 个合法 ID 被接受").isEqualTo(2);
 
         // wait=true 语义验证：返回后立刻 count，无 sleep、无重试
         long after = svc.countPointsByDocumentId(TMP_COLLECTION, DOC_A);

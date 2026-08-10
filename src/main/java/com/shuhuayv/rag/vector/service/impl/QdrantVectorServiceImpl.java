@@ -17,6 +17,7 @@ import org.springframework.web.client.RestClient;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -307,13 +308,16 @@ public class QdrantVectorServiceImpl implements QdrantVectorService {
     public QdrantOperationResult deletePoints(String collectionName, List<String> pointIds, boolean wait) {
         requireCollectionName(collectionName);
 
+        int requestedCount = (pointIds == null) ? 0 : pointIds.size();
         List<String> validIds = filterValidPointIds(pointIds);
+        int acceptedCount = validIds.size();
+
         if (validIds.isEmpty()) {
             // 过滤后为空：不发起任何 HTTP 请求。空 points 数组会被 Qdrant 判为无意义请求，
-            // 且会让调用方误以为"发生过一次删除"。
-            log.info("deletePoints skipped: no valid point id after filtering, collection={}, rawSize={}",
-                    collectionName, pointIds == null ? 0 : pointIds.size());
-            return QdrantOperationResult.skipped();
+            // 且会让调用方误以为"发生过一次删除"。requestedCount 保留以便审计"请求了多少 / 接受了 0"。
+            log.info("deletePoints skipped: no valid point id after filtering, collection={}, requested={}",
+                    collectionName, requestedCount);
+            return QdrantOperationResult.skipped(requestedCount);
         }
 
         ObjectNode body = objectMapper.createObjectNode();
@@ -322,9 +326,9 @@ public class QdrantVectorServiceImpl implements QdrantVectorService {
 
         String url = baseUrl() + "/collections/" + collectionName + "/points/delete?wait=" + wait;
         String responseBody = postJson(url, body, "按 ID 删除 Qdrant Point");
-        QdrantOperationResult result = parseOperationResult(responseBody);
-        log.info("deletePoints done: collection={}, requested={}, valid={}, wait={}, operationId={}, status={}",
-                collectionName, pointIds == null ? 0 : pointIds.size(), validIds.size(), wait,
+        QdrantOperationResult result = parseOperationResult(responseBody, requestedCount, acceptedCount);
+        log.info("deletePoints done: collection={}, requested={}, accepted={}, wait={}, operationId={}, status={}",
+                collectionName, requestedCount, acceptedCount, wait,
                 result.operationId(), result.status());
         return result;
     }
@@ -343,7 +347,8 @@ public class QdrantVectorServiceImpl implements QdrantVectorService {
 
         String url = baseUrl() + "/collections/" + collectionName + "/points/delete?wait=" + wait;
         String responseBody = postJson(url, body, "按 documentId 删除 Qdrant Point");
-        QdrantOperationResult result = parseOperationResult(responseBody);
+        // documentId 路径无 pointId 列表可供客户端过滤，requested/accepted 不适用于此路径，记为 0。
+        QdrantOperationResult result = parseOperationResult(responseBody, 0, 0);
         log.info("deletePointsByDocumentId done: collection={}, documentId={}, wait={}, operationId={}, status={}",
                 collectionName, documentId, wait, result.operationId(), result.status());
         return result;
@@ -375,6 +380,18 @@ public class QdrantVectorServiceImpl implements QdrantVectorService {
         return parseCount(postJson(url, body, "按 documentId 统计 Qdrant Point"));
     }
 
+    /**
+     * 遍历（scroll）某 Collection 的 Point，<b>单页</b>返回。
+     *
+     * <p><b>Point ID 契约</b>：本方法面向<b>UUID 字符串形式</b>的 Point ID 场景；
+     * {@code offset} 为上一页返回的 {@code next_page_offset}（本项目为 UUID 字符串），
+     * <b>不要求</b>其为数值，也不做数值化回溯。无符号整数 Point ID 不在本轮契约范围内。</p>
+     *
+     * @param collectionName 集合名（非空）
+     * @param offset         上一页 {@code next_page_offset}；{@code null}/空表示从首页开始
+     * @param limit          单页大小，范围 [{@code SCROLL_LIMIT_MIN}, {@code SCROLL_LIMIT_MAX}]
+     * @return 单页结果（含本页点列表与下一页 offset）
+     */
     @Override
     public ScrollPage scrollPoints(String collectionName, String offset, int limit) {
         requireCollectionName(collectionName);
@@ -472,10 +489,12 @@ public class QdrantVectorServiceImpl implements QdrantVectorService {
      * 都必须能被删除。</p>
      */
     private List<String> filterValidPointIds(List<String> pointIds) {
-        List<String> valid = new ArrayList<>();
         if (pointIds == null) {
-            return valid;
+            return List.of();
         }
+        // LinkedHashSet 去重且保留首次出现顺序：重复 ID（如 ["idA","idA","idB"]）会被合并为 2 个，
+        // 使 acceptedCount 真实反映"实际将发送给 Qdrant 的去重后 ID 数"，避免重复 ID 被静默双重计数。
+        LinkedHashSet<String> deduped = new LinkedHashSet<>();
         for (String pointId : pointIds) {
             if (pointId == null || pointId.isBlank()) {
                 log.warn("deletePoints: 跳过空 point id");
@@ -487,9 +506,9 @@ public class QdrantVectorServiceImpl implements QdrantVectorService {
                 log.warn("deletePoints: 跳过非法 point id（非 UUID 字面量），length={}", trimmed.length());
                 continue;
             }
-            valid.add(trimmed);
+            deduped.add(trimmed);
         }
-        return valid;
+        return new ArrayList<>(deduped);
     }
 
     /**
@@ -548,8 +567,17 @@ public class QdrantVectorServiceImpl implements QdrantVectorService {
         }
     }
 
-    /** 解析 {@code {"result":{"operation_id":N,"status":"completed"}}}。 */
-    private QdrantOperationResult parseOperationResult(String responseBody) {
+    /**
+     * 解析 {@code {"result":{"operation_id":N,"status":"completed"}}}。
+     *
+     * <p>{@code requestedCount} / {@code acceptedCount} 来自调用方（客户端侧已知事实），
+     * 仅透传进返回值用于审计，<b>不作为</b> Qdrant 响应解析的一部分，也<b>不</b>表示删除条数。</p>
+     *
+     * @param responseBody   Qdrant 原始响应体（非空）
+     * @param requestedCount 调用方原始 pointIds 数量（透传审计）
+     * @param acceptedCount  经客户端 UUID 校验、去重后实际发送的数量（透传审计）
+     */
+    private QdrantOperationResult parseOperationResult(String responseBody, int requestedCount, int acceptedCount) {
         if (responseBody == null) {
             throw new IllegalStateException("Qdrant 响应为空，无法解析操作结果");
         }
@@ -557,7 +585,7 @@ public class QdrantVectorServiceImpl implements QdrantVectorService {
             JsonNode result = objectMapper.readTree(responseBody).path("result");
             Long operationId = result.hasNonNull("operation_id") ? result.get("operation_id").asLong() : null;
             String status = result.path("status").asText(null);
-            return new QdrantOperationResult(operationId, status);
+            return new QdrantOperationResult(operationId, status, requestedCount, acceptedCount);
         } catch (Exception e) {
             throw new RuntimeException("解析 Qdrant 操作结果失败: " + e.getMessage(), e);
         }
