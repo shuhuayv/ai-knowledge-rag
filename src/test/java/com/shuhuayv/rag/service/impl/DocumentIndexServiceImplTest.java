@@ -126,6 +126,7 @@ class DocumentIndexServiceImplTest {
         doc.setId(id);
         doc.setFileName("doc.txt");
         doc.setStatus("PARSED");
+        doc.setIsDeleted(0L); // PR-3：index 对 is_deleted != 0 fail closed，fixture 必须显式 active
         return doc;
     }
 

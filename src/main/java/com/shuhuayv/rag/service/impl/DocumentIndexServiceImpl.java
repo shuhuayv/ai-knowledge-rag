@@ -1,6 +1,7 @@
 package com.shuhuayv.rag.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.shuhuayv.rag.dedup.SoftDeleteSemantics;
 import com.shuhuayv.rag.dto.DocumentIndexResponse;
 import com.shuhuayv.rag.embedding.service.EmbeddingService;
 import com.shuhuayv.rag.entity.KbChunk;
@@ -70,6 +71,10 @@ public class DocumentIndexServiceImpl implements DocumentIndexService {
         KbDocument document = kbDocumentMapper.selectById(documentId);
         if (document == null) {
             throw new IllegalArgumentException("文档不存在");
+        }
+        // D5：mutating 对 is_deleted != 0 fail closed。
+        if (!SoftDeleteSemantics.isActive(document.getIsDeleted())) {
+            throw new IllegalArgumentException("文档不存在或已删除，禁止向量化");
         }
 
         List<KbChunk> chunks = chunkService.getChunksByDocumentId(documentId);

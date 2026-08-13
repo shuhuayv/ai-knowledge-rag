@@ -28,4 +28,15 @@ public class DocumentUploadResponse {
 
     @Schema(description = "上传时间")
     private LocalDateTime createdAt;
+
+    /**
+     * 是否为内容级重复上传。
+     *
+     * <p>首次上传该内容返回 {@code false}；当上传文件的 raw-byte SHA-256 与库中某个 active 文档相同时
+     * 返回 {@code true}，此时上方 {@code id} 等字段描述的是<b>已存在</b>的那个文档。</p>
+     *
+     * <p>重复上传<b>不是业务错误</b>：endpoint 仍为 {@code POST /api/documents/upload}，HTTP 状态仍为 200。</p>
+     */
+    @Schema(description = "是否为内容重复上传（首次上传 false，重复上传 true）", example = "false")
+    private boolean duplicate;
 }
