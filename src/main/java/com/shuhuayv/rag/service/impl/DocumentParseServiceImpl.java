@@ -1,5 +1,6 @@
 package com.shuhuayv.rag.service.impl;
 
+import com.shuhuayv.rag.dedup.SoftDeleteSemantics;
 import com.shuhuayv.rag.entity.KbDocument;
 import com.shuhuayv.rag.mapper.KbDocumentMapper;
 import com.shuhuayv.rag.service.DocumentParseService;
@@ -30,6 +31,10 @@ public class DocumentParseServiceImpl implements DocumentParseService {
         KbDocument document = kbDocumentMapper.selectById(documentId);
         if (document == null) {
             throw new IllegalArgumentException("文档不存在");
+        }
+        // D5：mutating 对 is_deleted != 0 fail closed。
+        if (!SoftDeleteSemantics.isActive(document.getIsDeleted())) {
+            throw new IllegalArgumentException("文档不存在或已删除，禁止解析");
         }
 
         String filePath = document.getFilePath();

@@ -55,6 +55,21 @@ app:
     # 默认 false：本轮默认关闭，禁止在真实数据库上运行。
     # 仅显式置 true（如 APP_MIGRATION_BACKFILL_CONTENT_HASH=true）时回填器才会执行。
     backfill-content-hash: ${APP_MIGRATION_BACKFILL_CONTENT_HASH:false}
+    # PR-3 Historical Dedup 开关（默认 false，双保险）：
+    # 类级 @ConditionalOnProperty 使 Bean 默认不注册 + run() 内 enabled 二次判断。
+    # 仅显式置 true（APP_MIGRATION_HISTORICAL_DEDUP=true）且 dry-run=false 才可能真实写 DB/Qdrant。
+    historical-dedup: ${APP_MIGRATION_HISTORICAL_DEDUP:false}
+    # PR-3 dry-run（默认 true）：enabled=true 时也仅计算计划，绝不写 DB/Qdrant。
+    historical-dedup-dry-run: ${APP_MIGRATION_HISTORICAL_DEDUP_DRY_RUN:true}
+  dedup:
+    # 软删时是否删除原始物理文件（D7，默认 false：保留原始文件保 rollback；本轮绝不删真实文件）。
+    physical-file-delete-on-soft-delete: ${APP_DEDUP_PHYSICAL_FILE_DELETE_ON_SOFT_DELETE:false}
+    # Qdrant cleanup 仅限 current managed collections inventory（逗号分隔，D9）。
+    # legacy mock kb_chunks 不在其中 → 永不自动清理（PR3_MOCK_LEGACY_POINT_CLEANUP=NO）。
+    qdrant-managed-collections: ${APP_DEDUP_QDRANT_MANAGED_COLLECTIONS:kb_chunks_zhipu_embedding_3_1024_v1}
+    # 真实 cleanup 前必须为 managed collection 创建 snapshot（PR3_REQUIRES_QDRANT_SNAPSHOT=YES）。
+    # 默认开启；但 Runner 默认关闭 + dry-run 默认 true，本轮不会真实创建任何 snapshot。
+    qdrant-snapshot-required-before-cleanup: ${APP_DEDUP_QDRANT_SNAPSHOT_REQUIRED_BEFORE_CLEANUP:true}
 
 # ============================================================
 # AI Embedding 配置（双模式：mock / zhipu）
@@ -96,3 +111,8 @@ rag:
   retrieval:
     # 相似度最低阈值（Cosine）。score >= minScore 才返回。默认 0.0（不过滤）。
     min-score: ${RAG_RETRIEVAL_MIN_SCORE:0.0}
+    # Search/Ask soft-delete 防御层（D10）overfetch：
+    # 内部 candidateTopK = min(overfetch-maximum, max(topK, topK * overfetch-multiplier))。
+    # multiplier 受控默认 3、maximum 受控默认 50，禁止无限 overfetch。
+    overfetch-multiplier: ${RAG_RETRIEVAL_OVERFETCH_MULTIPLIER:3}
+    overfetch-maximum: ${RAG_RETRIEVAL_OVERFETCH_MAXIMUM:50}

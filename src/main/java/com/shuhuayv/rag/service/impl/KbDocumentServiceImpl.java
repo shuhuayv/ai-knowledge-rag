@@ -1,15 +1,19 @@
 package com.shuhuayv.rag.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.shuhuayv.rag.dedup.QdrantCleanupService;
+import com.shuhuayv.rag.dedup.SoftDeleteSemantics;
 import com.shuhuayv.rag.entity.KbDocument;
 import com.shuhuayv.rag.mapper.KbDocumentMapper;
 import com.shuhuayv.rag.service.DocumentUploadResult;
 import com.shuhuayv.rag.service.KbDocumentService;
 import com.shuhuayv.rag.util.FileHashUtil;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -21,10 +25,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
@@ -33,6 +40,20 @@ public class KbDocumentServiceImpl extends ServiceImpl<KbDocumentMapper, KbDocum
 
     @Value("${app.upload.dir:uploads}")
     private String uploadDir;
+
+    /**
+     * Qdrant 安全补偿式 cleanup（软删后删除该文档 exact points；D7）。
+     * 普通上传/读取路径不依赖本字段；仅 {@link #deleteDocument} 使用。
+     */
+    @Autowired
+    private QdrantCleanupService qdrantCleanupService;
+
+    /**
+     * 软删时是否删除原始物理文件（D7，默认 false）。
+     * 默认保留原始文件保 rollback；本轮绝不删除真实文件（PHYSICAL_FILE_DELETE_ON_SOFT_DELETE=NO）。
+     */
+    @Value("${app.dedup.physical-file-delete-on-soft-delete:false}")
+    private boolean physicalFileDeleteOnSoftDelete;
 
     private static final long MAX_FILE_SIZE = 50 * 1024 * 1024;
 
@@ -308,49 +329,117 @@ public class KbDocumentServiceImpl extends ServiceImpl<KbDocumentMapper, KbDocum
 
     @Override
     public List<KbDocument> listDocuments() {
-        return lambdaQuery()
-                .orderByDesc(KbDocument::getId)
-                .list();
+        // D5：active-only。soft-deleted 行（is_deleted != 0）不返回。
+        // 直接用 baseMapper 而非 lambdaQuery()（后者在纯 mock 单测中需要真实 mapper proxy）。
+        return getBaseMapper().selectList(new LambdaQueryWrapper<KbDocument>()
+                .eq(KbDocument::getIsDeleted, ACTIVE_FLAG)
+                .orderByDesc(KbDocument::getId));
     }
 
     @Override
     public IPage<KbDocument> pageDocuments(long pageNum, long pageSize) {
-        return lambdaQuery()
-                .orderByDesc(KbDocument::getId)
-                .page(new Page<>(pageNum, pageSize));
+        // D5：active-only。soft-deleted 行（is_deleted != 0）不返回。
+        return getBaseMapper().selectPage(new Page<>(pageNum, pageSize),
+                new LambdaQueryWrapper<KbDocument>()
+                        .eq(KbDocument::getIsDeleted, ACTIVE_FLAG)
+                        .orderByDesc(KbDocument::getId));
     }
 
     @Override
     public KbDocument getDocumentById(Long id) {
         KbDocument document = getById(id);
-        if (document == null) {
+        if (document == null || !SoftDeleteSemantics.isActive(document.getIsDeleted())) {
+            // D5：soft-deleted 行视为 not found（沿现有异常契约）。
             throw new IllegalArgumentException("文档不存在");
         }
         return document;
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>一次 SQL {@code WHERE id IN (...) AND is_deleted = 0} 批量返回 active id；
+     * Search 层只对 unique document IDs 调用一次，禁止 N+1（H 组测试契约）。</p>
+     */
+    @Override
+    public Set<Long> findActiveDocumentIds(Collection<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return Set.of();
+        }
+        List<Long> uniqueIds = ids.stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (uniqueIds.isEmpty()) {
+            return Set.of();
+        }
+        List<KbDocument> active = getBaseMapper().selectList(new LambdaQueryWrapper<KbDocument>()
+                .in(KbDocument::getId, uniqueIds)
+                .eq(KbDocument::getIsDeleted, ACTIVE_FLAG));
+        Set<Long> result = new HashSet<>();
+        if (active != null) {
+            for (KbDocument document : active) {
+                if (document != null && document.getId() != null) {
+                    result.add(document.getId());
+                }
+            }
+        }
+        return result;
+    }
+
     @Override
     public void deleteDocument(Long id) {
         KbDocument document = getById(id);
-        if (document == null) {
+        if (document == null || !SoftDeleteSemantics.isActive(document.getIsDeleted())) {
+            // 不存在或已软删：重复删除按 not found 契约处理（E 组测试契约）。
             throw new IllegalArgumentException("文档不存在");
         }
 
-        removeById(id);
-
-        if (document.getFilePath() != null) {
-            try {
-                File file = new File(document.getFilePath());
-                if (file.exists()) {
-                    file.delete();
-                    log.info("Document file deleted, path={}", document.getFilePath());
-                }
-            } catch (Exception e) {
-                log.warn("Failed to delete document file, path={}", document.getFilePath(), e);
-            }
+        // D7：物理删除 → soft delete。保留 row 作 tombstone；不得物理删除 DB row。
+        // 乐观守卫：只对仍为 active 的行生效（并发下二次删除 / 已治理行不会被动）。
+        LambdaUpdateWrapper<KbDocument> update = new LambdaUpdateWrapper<KbDocument>()
+                .set(KbDocument::getIsDeleted, SoftDeleteSemantics.deletedMarker(id))
+                .eq(KbDocument::getId, id)
+                .eq(KbDocument::getIsDeleted, ACTIVE_FLAG);
+        int affected = getBaseMapper().update(null, update);
+        if (affected != 1) {
+            throw new IllegalStateException("软删失败（乐观守卫未命中），id=" + id);
         }
 
-        log.info("Document deleted, id={}", id);
+        // D7：Qdrant points 安全补偿式 cleanup（失败不反向恢复 DB，可单独重跑）。
+        try {
+            if (qdrantCleanupService != null) {
+                qdrantCleanupService.cleanupForDocument(id);
+            }
+        } catch (Exception e) {
+            log.warn("软删后 Qdrant 补偿清理失败（DB 保持 soft-deleted 状态，不自动反向恢复），documentId={}", id, e);
+        }
+
+        // D7：物理文件默认不删（PHYSICAL_FILE_DELETE_ON_SOFT_DELETE=NO），保留原始文件保 rollback。
+        // 若产品明确要求删除物理文件，须先报告主控 AI，且只能通过显式配置开启。
+        if (physicalFileDeleteOnSoftDelete) {
+            deletePhysicalFileIfExists(document.getFilePath());
+        }
+
+        log.info("Document soft deleted, id={}, isDeleted={}", id, id);
+    }
+
+    /**
+     * 删除文档的原始物理文件（仅当显式开启 {@code physicalFileDeleteOnSoftDelete} 时调用；
+     * 默认关闭，本轮不删任何真实文件）。失败仅 warn，不阻断软删流程。
+     */
+    private void deletePhysicalFileIfExists(String filePath) {
+        if (filePath == null || filePath.isBlank()) {
+            return;
+        }
+        try {
+            File file = new File(filePath);
+            if (file.exists() && file.delete()) {
+                log.info("Document physical file deleted (explicit config), path={}", filePath);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to delete document physical file, path={}", filePath, e);
+        }
     }
 
     private String getFileType(String filename) {

@@ -5,7 +5,9 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.shuhuayv.rag.entity.KbDocument;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 public interface KbDocumentService extends IService<KbDocument> {
 
@@ -39,11 +41,47 @@ public interface KbDocumentService extends IService<KbDocument> {
      */
     KbDocument findPreferredActiveDuplicate(String contentSha256);
 
+    /**
+     * 批量查询 active 文档 id（D10，Search/Ask 防御层）。
+     *
+     * <p><b>禁止 N+1</b>：一次 SQL {@code WHERE id IN (...) AND is_deleted = 0} 返回所有匹配 id；
+     * Search 层只对 unique document IDs 做一次批量校验。空集合直接返回空 Set，不发起查询。</p>
+     *
+     * @param ids 待校验的 document id 集合（可为空）
+     * @return active 文档 id 集合（仅 is_deleted = 0 的 id）
+     */
+    Set<Long> findActiveDocumentIds(Collection<Long> ids);
+
+    /**
+     * 列出全部 active 文档（D5：active-only，soft-deleted 行不返回）。
+     */
     List<KbDocument> listDocuments();
 
+    /**
+     * 分页查询 active 文档（D5：active-only，soft-deleted 行不返回）。
+     */
     IPage<KbDocument> pageDocuments(long pageNum, long pageSize);
 
+    /**
+     * 查询单个 active 文档（D5：soft-deleted 行视为 not found）。
+     *
+     * @param id 文档 id
+     * @return active 文档
+     * @throws IllegalArgumentException 文档不存在或已软删
+     */
     KbDocument getDocumentById(Long id);
 
+    /**
+     * 删除文档：<b>物理删除 → soft delete</b>（D7）。
+     *
+     * <p>语义：仅对 {@code is_deleted = 0} 的行生效 → 设 {@code is_deleted = 自身 document id}
+     * → 不改 {@code content_sha256} → canonical_document_id 普通删除不强制写（保持 NULL，
+     * 除非已有 lineage）→ 保留 row 作 tombstone → Qdrant points 安全补偿式 cleanup
+     * → <b>不得物理删除 DB row</b> → 默认 PHYSICAL_FILE_DELETE_ON_SOFT_DELETE=NO
+     * （保留原始文件保 rollback）。</p>
+     *
+     * @param id 文档 id
+     * @throws IllegalArgumentException 文档不存在或已软删（重复删除按 not found 契约）
+     */
     void deleteDocument(Long id);
 }
