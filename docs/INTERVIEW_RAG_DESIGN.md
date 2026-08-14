@@ -20,7 +20,11 @@
 
 ## 4. 为什么 canonical selection 先看 vector completeness？
 
-因为 RAG 的检索质量最终依赖向量是否齐全。规则 `VECTOR_COMPLETENESS → STATUS_RANK → CREATED_AT ASC → ID ASC` 中，第一步要求 `chunk_count > 0` 且 `vector_record_count == chunk_count`；若向量不全（多向量 / 缺向量）直接 fail closed 为 anomaly。先保"可用"，再比"状态好"，最后用时间/ID 做确定性 tie-break，避免随机选主。
+因为 RAG 的检索质量最终依赖向量是否齐全。规则 `VECTOR_COMPLETENESS → STATUS_RANK → CREATED_AT ASC → ID ASC` 中，第一步要求 `chunk_count > 0` 且 `vector_record_count == chunk_count`（向量齐全）；先保"可用"，再比"状态好"，最后用时间/ID 做确定性 tie-break，避免随机选主。
+
+需精确区分两类向量问题，不能混为一谈：
+- **缺向量（missing vector）**：`vector_record_count < chunk_count`（或 `chunk_count = 0`）→ 归为 `INCOMPLETE`，表示向量**不完整**，影响 canonical preference / completeness 判断，但**不是** fail-closed anomaly；
+- **多向量 / 重复向量记录（over-count / duplicate vector anomaly）**：`vector_record_count > chunk_count`，或同一 chunk 存在异常重复 vector record → 归为 `VECTOR_INVENTORY_ANOMALY`，这是真正的 **fail-closed** 条件，会阻止 canonicalization。
 
 ## 5. 为什么 soft-delete 用 self document id？
 
@@ -44,7 +48,9 @@ TopK 检索直接在 Qdrant 上取 N 条，但其中可能混有 inactive/unknow
 
 ## 10. 为什么 Qdrant cleanup 用 exact Point IDs？
 
-历史去重清理的是**确定已知的** historical duplicate documents（7/8/9/10）对应的向量。用 exact Point ID 列表删除，粒度精确到点，配合 snapshot-before-delete，可审计、可回滚、零误伤。wildcard / payload 范围删除在大批量数据下极易误删无关向量，是禁止项。
+历史去重清理的是**确定已知的** historical duplicate documents（7/8/9/10）对应的向量。用 exact Point ID 列表删除，粒度精确到点，体现 snapshot-before-delete + exact Point-ID cleanup 的**受控恢复设计**，以降低误删风险。wildcard / payload 范围删除在大批量数据下极易误删无关向量，是禁止项。
+
+> 历史执行说明：PR-3 的**数据后态**已验证（POST 5 points），但**部分 snapshot / runner raw evidence 未完整保存**（`PR3_PROCEDURAL_EVIDENCE=PARTIAL`）。因此不能声称"已完全证明可回滚 / 零误伤"——只能说设计上支持受控恢复，且历史执行未观察到误删。
 
 ## 11. 为什么 legacy Mock 不混进 historical PR-3？
 
@@ -60,8 +66,8 @@ PR-3 治理的是 **current REAL managed collection**（`kb_chunks_zhipu_embeddi
 
 ## 14. benchmark 改善与 causal claim 的边界在哪？
 
-可以因果地说"去重后，受控基准上的检索排序质量改善（Hit@3 0.5→1.0、MRR 0.6→0.75），与历史重复污染减少一致"。**不能**因果地说"去重导致模型准确率提高"——因为生成层 LLM 没变，且 latency 在本轮还 regressed。改善来自检索侧去噪，不是模型侧提升；latency 变化更不能归因于 dedup。
+可以**观察性**地说"去重后，受控基准上的检索排序质量改善（Hit@3 0.5→1.0、MRR 0.6→0.75），与历史重复污染减少一致"。**不能**说"去重导致模型准确率提高"——因为生成层 LLM 没变，且 latency 在本轮还更高。改善来自检索侧去噪，不是模型侧提升；latency 变化**不应直接归因于** dedup（运行环境与 API 波动均可影响，当前证据不足以确定归因）。
 
 ## 15. `ai_call_log` side effect 给 Gate 设计带来什么教训？
 
-上一轮 REAL benchmark 的 Gate 错误要求"数据库零写"，但 `/api/rag/ask` 本就会正常持久化 `ai_call_log`（append-only 审计历史，非语料变更）。结果 18 条审计写入被误判为违规，逼出了对"零写"定义的重新审视。**教训**：Gate 的约束必须区分"预期内的副作用（审计日志）"与"意外的语料/状态变更"；对账要做双侧交叉验证（日志侧 + 数据库侧，差额为 0），并显式允许预期审计写入，否则会把合规的正确行为误报成违规。
+REAL `/api/rag/ask` 正常就会写入 append-only `ai_call_log`（运行时审计历史，非语料变更）。上一评估 Gate 却把**所有 DB write 一律禁止**，因此实际执行**确实违反了该 Gate 的程序约束**（`PREVIOUS_REAL_EVAL_PROCEDURAL_RESULT=FAILED_CONSTRAINT`）——因为产生了 18 条审计写入。但后续 Closure 通过**日志 + 数据库双侧交叉对账**（差额为 0）确认写入只限于审计日志，**未发现 corpus / Qdrant mutation**（`CORPUS_MUTATION_DETECTED=NO`）。**教训**：Gate 约束必须区分"预期内的副作用（审计日志）"与"意外的语料/状态变更"；未来 Gate 应从"数据库零写"改为"允许预期 audit writes，但严格校验 corpus invariants"。不能用"误判违规"来洗白——那 18 条写入在当时合约下确实违规，只是它污染的是审计表而非语料。

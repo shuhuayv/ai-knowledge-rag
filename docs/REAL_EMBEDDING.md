@@ -90,7 +90,8 @@ boolean real();             // false / true
 - `kb_vector_record`：`embedding_provider` / `embedding_model` / `embedding_dimensions` / `index_version`；
 - `kb_document`：`embedding_provider` / `embedding_model` / `embedding_dimensions` / `vector_collection` /
   `index_version` / `indexed_at`；
-- pointId 确定性：`{documentId}_{chunkId}_{indexVersion}`（如 `1_10_v1`），重索引幂等（覆盖同一 Point）。
+- pointId 确定性：基于名称的确定性 UUID v3（`UUID.nameUUIDFromBytes`），输入规范串为 `documentId:chunkId:indexVersion`（colon 分隔，如 `1:10:v1`），重索引幂等（覆盖同一 Point）。
+  > 注意：早期实现曾用下划线格式 `documentId_chunkId_indexVersion`（如 `1_10_v1`），因 Qdrant 仅接受 unsigned integer 或 UUID，该格式非法会触发 Qdrant 400 并使 index 接口返回 500，**现已不再使用**。当前 Point ID 始终是合法 UUID 字符串（36 字符）。
 
 ## 11. SQL Migration
 
@@ -159,7 +160,7 @@ mvn spring-boot:run
 
 `fallback-enabled` 默认 `false`：缺 Key 时明确失败，不静默降级到 Mock。
 
-## 18. 测试方式
+## 18. 测试方式（A 层 单元测试 / B 层 受控真实验证）
 
 纯单元测试（JUnit 5 + Mockito + AssertJ + okhttp3 MockWebServer），**不使用 `@SpringBootTest`**，
 不触碰真实 API / Key / Qdrant / MySQL / Redis：
@@ -171,15 +172,27 @@ mvn -o clean test
 覆盖：Mock 稳定性、Zhipu 端点/模型/维度/分批/顺序恢复/各类校验失败/重试/缺 Key、Collection 命名与隔离、
 `ensureCollection` 维度校验、`getVectorSize`、索引元数据与幂等、min-score 过滤、无结果不调用 Chat、状态接口不泄露 Key。
 
-> 诚实声明：真实 API 的冒烟测试（使用真实 Key 调用智谱 embedding-3）**尚未由 Agent 执行**。目前仅保证
-> `mvn clean test` 构建通过 + 纯单元测试（okhttp3 MockWebServer 模拟真实 API）全部通过；真实端到端链路
-> （上传→解析→真实向量化→检索）需用户在本地配置 `ZHIPU_API_KEY` / `AI_API_KEY` 后手动验证。
+### B 层：受控真实运行验证（local / controlled development environment）
 
-## 19. 评估方法
+项目已在**受控本地开发环境**中完成真实运行验证（注意边界：非 production deployment、非 production SLA、非大规模真实用户验证）：
 
-使用 `scripts/evaluate_real_embedding.sh`：准备 3 主题 demo 文档，对 4 个问题（3 主题相关 + 1 无关"红烧肉"）
-做 TopK=3 检索，计算 hit@1 / hit@3 / MRR / 无关问题最高分。**指标均由真实运行计算，绝不写死**。
-详见 `docs/retrieval-evaluation.md`。
+- 真实 Embedding runtime：`zhipu` / `embedding-3` / **1024 维** / mode=REAL / fallback=false 已跑通；
+- 真实 Chat runtime：`zhipu` / `glm-4.5-air` 已验证；
+- 真实 Search / Ask 冒烟（上传→解析→真实向量化→检索→生成）已完成；
+- same-17 受控基准（16 retrieval + 1 no-answer）已完成：17/17 使用 provider=zhipu / model=glm-4.5-air / embeddingProvider=zhipu / embeddingMode=REAL / fallbackUsed=false。
+
+> 边界：以上为 **local / controlled development verification**，不等同于 production deployment / production SLA / large-scale real-user validation；真实 Chat 仍可能有模型误差，score 是相似度非答案正确率。
+
+## 19. 评估方法（两类，请勿混淆）
+
+- **早期轻量检索评估工具**（非当前最终基准）：`scripts/evaluate_real_embedding.sh` 准备 3 主题 demo 文档，
+  对 4 个问题（3 主题相关 + 1 无关"红烧肉"）做 TopK=3 检索，计算 hit@1 / hit@3 / MRR / 无关问题最高分。
+  这是 earlier / lightweight retrieval evaluation utility。
+- **当前接受的 final benchmark**：受控 **17-case** 回归集（16 retrieval + 1 no-answer），
+  用于验证去重/检索逻辑，见 `docs/FINAL_ENGINEERING_FACTS.md` 与 `docs/retrieval-evaluation.md`。
+
+> 两者不是同一件事：当前 final evaluation **不是只有 4 个问题**；4 问题脚本是独立的小工具，不代表最终基准规模。
+> 所有指标均由真实运行计算，绝不写死。
 
 ## 20. 常见错误
 

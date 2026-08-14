@@ -81,7 +81,7 @@ POST /api/documents/{id}/index
 
 - `kb_vector_record`：`embedding_provider` / `embedding_model` / `embedding_dimensions` / `index_version`
 - `kb_document`：`embedding_provider` / `embedding_model` / `embedding_dimensions` / `vector_collection` / `index_version` / `indexed_at`
-- **确定性 pointId**：`{documentId}_{chunkId}_{indexVersion}`（如 `1_10_v1`），重索引幂等（覆盖同一 Point）。
+- **确定性 pointId**：基于名称的确定性 UUID v3（`UUID.nameUUIDFromBytes`），输入规范串为 `documentId:chunkId:indexVersion`（colon 分隔，如 `1:10:v1`），重索引幂等（覆盖同一 Point）。早期下划线格式 `documentId_chunkId_indexVersion`（如 `1_10_v1`）因 Qdrant 仅接受 UUID / unsigned integer 而非法，现已不再使用。
 
 ## Qdrant 配置
 

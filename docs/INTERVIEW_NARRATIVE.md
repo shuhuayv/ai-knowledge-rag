@@ -19,6 +19,6 @@
 3. **point identity**：Qdrant 向量点用 `documentId:chunkId:indexVersion` → UUID v3 确定性 ID，保证 upsert 幂等与精确清理——文档身份和向量点身份是两套体系，必须分开。
 4. **data governance**：canonical 选择先看向量完备性再比状态再 tie-break；soft-delete 用 self-id 而非统一 `is_deleted=1`，既保留 lineage 又靠 `UNIQUE(content_sha256,is_deleted)` 锁住活跃唯一性。
 5. **active-only Search**：检索结果里任何 unknown/inactive/deleted 文档 fail closed，配合批量 active 校验，避免把脏/失效文档喂给 LLM，也避免 N+1。
-6. **migration order**：M1 additive → 兼容代码 → Backfill 原始哈希 → PR-3 去重 → M2 加唯一约束，每步可验证可回退；Qdrant 清理用 exact Point ID + snapshot-before-delete。
+6. **migration order**：M1 additive → 兼容代码 → Backfill 原始哈希 → PR-3 去重 → M2 加唯一约束，每步可验证可回退；Qdrant 清理采用 exact Point ID + snapshot-before-delete 的**受控恢复设计**（PR-3 数据后态已验证，但部分 snapshot / runner raw evidence 未完整保存，故不声称已完全证明可回滚 / 零误伤）。
 7. **REAL benchmark**：真实接入智谱 embedding-3 + glm-4.5-air 跑通 17-case 评估，去重后检索质量提升；但我们**诚实标注** latency 本轮 regressed 且不能归因于去重，也不称 production accuracy。
-8. **evidence / engineering safety**：通过日志+数据库双侧交叉对账，发现上一轮 Gate 误把 18 条合规的 `ai_call_log` 审计写入当成违规——修正了 Gate 约束定义，区分"预期内审计副作用"与"意外语料变更"。这体现的工程纪律比模型本身更值钱。
+8. **evidence / engineering safety**：REAL Ask 正常会写入 append-only `ai_call_log`；上一评估 Gate 因一律禁止 DB write，**实际执行确实违反了该 Gate 的程序约束**（产生 18 条审计写入，`PREVIOUS_REAL_EVAL_PROCEDURAL_RESULT=FAILED_CONSTRAINT`），但后续 Closure 通过日志+数据库双侧交叉对账确认写入只限审计日志、未发现 corpus / Qdrant mutation。这促使我们把未来 Gate 从"数据库零写"改为"允许预期 audit writes 但严格验证 corpus invariants"——这体现的工程纪律比模型本身更值钱。
