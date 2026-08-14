@@ -1,17 +1,17 @@
 # ai-knowledge-rag
 
-企业级 AI 知识库问答系统 —— 基于 **Spring Boot + RAG（检索增强生成）**。检索层使用真实智谱 `embedding-3`（1024 维）向量 + Qdrant；生成层 Chat 使用 OpenAI-compatible 接口（默认智谱 `glm-4.5-air`）。
+本地 / 受控开发项目：基于 **Spring Boot + RAG（检索增强生成）** 的 AI 知识库问答系统。检索层使用真实智谱 `embedding-3`（1024 维）向量 + Qdrant；生成层 Chat 使用 OpenAI-compatible 接口（默认智谱 `glm-4.5-air`）。
 
 > 说明：本项目**未使用 Spring AI**，Chat / Embedding 调用均通过 **Spring RestClient** 直接对接 OpenAI-compatible 协议，可平滑切换到阿里百炼、DeepSeek、火山方舟等兼容 provider。
 
-## 真实能力边界（诚实口径）
+## 1. 真实能力边界（诚实口径）
 
 - **检索层 = 真实语义检索**：真实 `embedding-3` 1024 维向量，写入独立 Qdrant Collection `kb_chunks_zhipu_embedding_3_1024_v1`，与 Mock（384 维 `kb_chunks`）物理隔离。
-- **生成层 Chat = 真实智谱**（本地 Demo 经 Keychain 注入 Key，默认 `glm-4.5-air`、`thinking` 默认关闭、超时 90s、对 429/1302/1305 自动退避重试）。
+- **生成层 Chat = 真实智谱**（本机经 Keychain 注入 Key，默认 `glm-4.5-air`、`thinking` 默认关闭、超时 90s、对 429/1302/1305 自动退避重试）。
 - **不是** 训练大模型、不是自研向量库、不做线上高并发承诺；本地 Demo 无登录 / 权限。
 - 真实 Key 的端到端冒烟需本机注入 Key 后运行，README 只描述已落地的代码与构建/测试能力。
 
-## 技术栈
+## 2. 技术栈
 
 - Java 21 + Spring Boot 4.1
 - Maven 3.9
@@ -21,7 +21,7 @@
 - Springdoc OpenAPI / Swagger UI
 - PDFBox（PDF 解析）
 
-## 系统架构
+## 3. 系统架构
 
 ```
 上传 → 解析(PDFBox) → Chunk(滑动窗口) → 向量化(EmbeddingService: Mock/Real)
@@ -36,20 +36,109 @@
 - `ChatModelService`：`OpenAiCompatibleChatModelServiceImpl`（Semaphore 并发=1 + 退避重试 + thinking 开关）。
 - `EmbeddingStatusController`：仅返回 `apiKeyConfigured` 布尔，绝不泄露 Key。
 
-## 核心业务流程
+## 4. 核心业务流程
 
 1. 文档上传（TXT/PDF）→ 解析 → Chunk 切分
 2. 向量化（Mock 或真实 Embedding）→ 写入 Qdrant
 3. 语义检索：`POST /api/search` 返回 TopK
 4. RAG 问答：`POST /api/rag/ask` → 检索 + Chat 生成 + 引用来源（references 含 documentId / chunkId / score）
 
-## 本地依赖
+## 5. 两级身份设计（Two-level Identity）
+
+**文档级身份 — `content_sha256`**
+
+- 定义：`SHA-256(raw uploaded file bytes)`（原始上传字节的哈希）。
+- **严禁**把它写成 normalized text hash / PDF 提取文本 hash / chunk text hash / filename+content hash / path+content hash。
+- 重复上传查重：`content_sha256 + is_deleted=0`，用于阻止新的 active duplicate document。
+
+**向量点身份 — Qdrant 确定性 point ID**
+
+- 来源：`documentId:chunkId:indexVersion` → 确定性 UUID v3。
+- 作用：保证 vector point upsert 的 identity / 幂等性。
+- 重要：`content_sha256` 与 Qdrant point ID 是**两套不同**的身份体系，README / 面试稿必须明确区分。
+
+## 6. 幂等上传（Idempotent Upload）
+
+重复上传判定使用 `content_sha256 + is_deleted=0`：若已存在 preferred active document，则直接返回该文档，**不新增** duplicate document。
+
+## 7. Historical Dedup 治理
+
+- 规范规则（canonical rule）：`VECTOR_COMPLETENESS → STATUS_RANK → CREATED_AT ASC → ID ASC`。
+- 历史重复行采用 **soft-delete（自引用自身 document id）**，而非物理删除；canonical 行 `canonical_document_id=NULL`、`dedup_batch=NULL`、`is_deleted=0`。
+- 子行（child rows）保留用于审计；`kb_chunk` / `kb_vector_record` 保留 for audit，正常读取/解析/索引走 active-only。
+- 迁移顺序：`M1（additive migration）→ compatible code → Backfill → PR-3（historical dedup）→ M2（unique constraint）`。
+
+## 8. Search / RAG 安全
+
+- Qdrant 返回结果中：`documentId=null` / unknown document / inactive document / deleted document **全部 fail closed**。
+- 采用 **bounded overfetch + batched active-document lookup**，避免 N+1 以及 stale point 占满 topK。
+- RAG 引用（references）仅指向 active document。
+
+## 9. Qdrant 安全
+
+- REAL / Mock Collection **物理隔离**（不同 Collection、不同维度）。
+- 确定性 point ID 保证 upsert 幂等。
+- Historical cleanup 仅 retired current REAL managed collection 的 exact Point IDs，**禁止** wildcard / broad payload delete / collection delete；cleanup 前做 snapshot-before-delete 安全副本。
+- legacy Mock Collection（5 points，384 维）属于 **SEPARATE_TECH_DEBT**，尚未清理，README 如实说明 Mock / REAL 空间物理分离，**不得写** legacy Mock 已清理。
+
+## 10. 数据库迁移策略
+
+- `M1`：additive migration（兼容代码先行）。
+- 兼容代码 + raw hash backfill + historical dedup + `M2` unique constraint。
+- `M2` 唯一约束：`UNIQUE(content_sha256, is_deleted)`。
+
+## 11. Mock / REAL 运行时
+
+- checked-in default 可保留 Mock；Current REAL runtime 已受控验证：Zhipu `embedding-3`（1024 维）+ `glm-4.5-air`。
+- 真实 Key 经本机 Keychain 注入，README / 代码均不暴露 Key。
+
+## 12. 评估（Evaluation）
+
+小型受控 17-case 回归基准（语料含重复演示文档，不代表生产准确率）：
+
+| 指标 | Historical Verified | Current Post-dedup |
+|------|---------------------|--------------------|
+| Hit@1 | 0.5 | 0.5 |
+| Hit@3 | 0.5 | 1.0 |
+| Hit@5 | 1.0 | 1.0 |
+| MRR | 0.6 | 0.75 |
+| No-answer rejection | 1.0 | 1.0 |
+| Faithfulness heuristic | 0.875 | 0.9375 |
+
+- 检索排序质量在该小型受控基准上改善（Hit@3 0.5→1.0、MRR 0.6→0.75），结果**一致于**历史重复污染减少；Hit@1 / Hit@5 / 无答案拒答率不变。
+- **不可**称 RAG accuracy = 100% / production accuracy = 100% / 准确率提高 100% / PR-3 必然导致模型准确率提高 / production performance improved。
+- 诚实说明：**当前运行的 latency 更高**（检索 avg 1570.13 / P50 1337.5 / P95 2492.78 ms；生成 avg 3267.92 / P50 2953.7 / P95 5049.7 ms，对比历史检索 avg 1044.82 / P50 1056.0 / P95 1463.06 ms、生成 avg 2596.51 / P50 2510.6 / P95 3799.0 ms）。latency 变化**不应直接归因于 dedup**。
+
+## 13. 验证（Validation）
+
+- **202 Maven tests**，0 failures / 0 errors / 0 skipped。
+- `mvn -B package -DskipTests` → BUILD SUCCESS。
+- PR #6（`feat(rag): add document identity, dedup governance, and soft-delete safety`）已 MERGED 至 main。
+- REAL runtime 受控验证完成；same-17 受控评估完成。
+
+## 14. 安全 / 工程经验（Safety / Engineering Lessons）
+
+- Gate-based migration（分闸迁移）：dry-run、snapshot、source fingerprint、exact cleanup、evidence verification。
+- 迁移顺序与兼容代码先行，避免一次性大改。
+- 评估结论须区分 controlled benchmark 与 production measurement，不夸大。
+
+> 注：README 不展开内部评估事件细节；完整的 caveats（PR-3 / M2 / REAL-eval `ai_call_log` side effect / legacy Mock 技术债）见 `docs/FINAL_ENGINEERING_FACTS.md`。
+
+## 15. 已知边界 / 未来工作（Known Boundaries / Future Work）
+
+- legacy Mock Collection retirement（当前为独立技术债）。
+- 可能的 reranking / observability / 更大评估语料。
+- 明确：**以上均非当前实习 Demo 所必需**；本项目为 local / controlled development project，未验证 high concurrency / multi-tenant / large-scale traffic / production SLA / real-world accuracy。
+
+## 16. 本地依赖与启动
+
+### 本地依赖
 
 - JDK 21+、Maven 3.9+
 - Docker：mysql8（3307→3306）、redis7（6379）、qdrant（6333）
 - 真实模式需本机 Keychain 中 `ai_dev`（DB）与 `ai-knowledge-rag-zhipu`（智谱 Key）
 
-## 环境变量
+### 环境变量（节选）
 
 | 变量 | 默认 | 说明 |
 |------|------|------|
@@ -63,57 +152,43 @@
 | `AI_EMBEDDING_MODEL` | `embedding-3` | 真实 embedding 模型 |
 | `AI_EMBEDDING_DIMENSIONS` | `1024` | 维度 |
 | `AI_EMBEDDING_FALLBACK_ENABLED` | `false` | 缺 Key 时明确失败，不静默降级 |
-| `DB_HOST/DB_PORT/DB_NAME/DB_USERNAME/DB_PASSWORD` | 127.0.0.1/3307/ai_knowledge_rag/ai_dev | 数据库 |
+| `DB_HOST/DB_PORT/DB_NAME/DB_USERNAME/DB_PASSWORD` | localhost/3307/ai_knowledge_rag/ai_dev | 数据库 |
 
-## 本地启动
-
-### 1. 配置（从 Keychain 读取，无需手写明文）
+### 启动
 
 ```bash
-# 复制示例并查看（不要填真实密码）
+# 1. 配置（从 Keychain 读取，无需手写明文）
 cp .env.example .env
-# 真实启动推荐用仓库脚本（自动从 Keychain 读密）：
 bash scripts/start_rag_local.sh      # 前台日志在 .demo-run/logs
 bash scripts/stop_rag_local.sh
-```
 
-### 2. Mock 模式（默认，无需 Key）
-
-```bash
+# 2. Mock 模式（默认，无需 Key）
 mvn spring-boot:run
-```
 
-### 3. 真实 Chat（glm-4.5-air）
-
-```bash
+# 3. 真实 Chat（glm-4.5-air）
 export AI_MOCK_ENABLED=false AI_PROVIDER=zhipu
 export ZHIPU_API_KEY='<从 Keychain 读取，绝不提交>'
 export AI_MODEL='glm-4.5-air' AI_THINKING_TYPE=disabled AI_TIMEOUT_SECONDS=90
 mvn spring-boot:run
-```
 
-### 4. 真实 Embedding（embedding-3, 1024 维）
-
-```bash
+# 4. 真实 Embedding（embedding-3, 1024 维）
 export AI_EMBEDDING_PROVIDER=zhipu AI_EMBEDDING_MODEL=embedding-3 AI_EMBEDDING_DIMENSIONS=1024
 export AI_EMBEDDING_FALLBACK_ENABLED=false ZHIPU_API_KEY='<从 Keychain 读取>'
 mvn spring-boot:run
 ```
 
-## 测试命令
+## 17. 测试与 CI
 
 ```bash
-mvn -B test          # 当前 72 个单元测试通过（MockWebServer / Qdrant 本地实例），BUILD SUCCESS
+mvn -B test                      # 当前 202 个单元测试（MockWebServer / Qdrant 本地实例），BUILD SUCCESS
 mvn -B package -DskipTests
 ```
 
 测试覆盖：Embedding 双模式、CollectionNameResolver、Qdrant 向量读写、检索、RAG 问答、Embedding 状态接口、限流退避（见 `src/test`）。
 
-## CI
+CI：GitHub Actions `.github/workflows/ci.yml`（push / PR 至 main，Java 21，Maven 缓存，`mvn -B test` + `mvn -B package -DskipTests`）。测试配置不读取生产秘密，不调用真实 API。
 
-GitHub Actions：`.github/workflows/ci.yml`（push/PR main，Java 21，Maven 缓存，`mvn -B test` + `mvn -B package -DskipTests`）。测试配置不读取生产秘密，不调用真实 API。
-
-## API / 页面入口
+## 18. API / 页面入口
 
 | 入口 | 地址 |
 |------|------|
@@ -126,7 +201,7 @@ GitHub Actions：`.github/workflows/ci.yml`（push/PR main，Java 21，Maven 缓
 
 详见 [docs/rag.md](docs/rag.md)、[docs/search.md](docs/search.md)、[docs/REAL_EMBEDDING.md](docs/REAL_EMBEDDING.md)。
 
-## 演示步骤
+## 19. 演示步骤
 
 ```bash
 bash scripts/reset_demo_data.sh --yes
@@ -135,56 +210,12 @@ bash scripts/demo_real_embedding_flow.sh     # upload→parse→index→search�
 
 样例文档：`samples/company_policy.txt`。
 
-## 已知限制
-
-- 多轮会话历史暂未支持。
-- 真实 Chat 受智谱速率限制，已做退避重试但仍可能短时不可用。
-- 评估指标见下方「检索评估」，生成层指标以本机真实运行结果为准。
-
-## 面试亮点
-
-- Mock / Real Embedding 双模式 + Collection 物理隔离，维度安全。
-- Chat 限流退避（429/1302/1305）+ 并发 Semaphore + thinking 关闭，稳定输出。
-- 检索透明性：candidate/returned 计数、Embedding 元数据、无结果固定文案、状态接口不泄露 Key。
-- 72 个单测 + CI 绿。
-
-## 故障排查
+## 20. 故障排查
 
 - 启动报 `Embedding` 维度冲突：确认真实模式 Collection `kb_chunks_zhipu_embedding_3_1024_v1` 维度为 1024；`bash scripts/check_embedding_config.sh` 预检。
 - Chat 空回答：旧 GLM 默认开启思考会耗尽 max_tokens；本项目 `AI_THINKING_TYPE=disabled` 已规避。
 - 端口占用：RAG 用 8080；确认 mysql8(3307)、redis7(6379)、qdrant(6333) 已启动。
 
-## 检索评估（真实运行结果，可复现）
-
-评估系统位于 `evaluation/`（Python 标准库，无第三方依赖）：`metrics.py` / `retrieval_eval.py` / `generation_eval.py` / `test_metrics.py`（18 例单测）/`dataset.json`（17 条小型受控评估集）。密钥经本机 Keychain 在进程内临时读取，绝不落盘。
-
-```bash
-python3 evaluation/test_metrics.py                                   # 评估脚本单测（18 例）
-python3 evaluation/retrieval_eval.py --base-url http://localhost:8080 --out-dir evaluation/results
-python3 evaluation/generation_eval.py --base-url http://localhost:8080 --out-dir evaluation/results --delay 1.0
-```
-
-真实运行指标（base commit `51f6bc3`，embedding-3 / glm-4.5-air，2026-07-12）：
-
-| 维度 | 指标 | 值 |
-|------|------|-----|
-| 检索 | 样本数 / 检索问题 | 17 / 16 |
-| 检索 | Hit@1 / Hit@3 / Hit@5 | 0.5 / 0.5 / 1.0 |
-| 检索 | MRR | 0.6 |
-| 检索 | 无结果率 / HTTP·解析错误率 | 0.0 / 0.0 |
-| 检索 | 无答案正确拒答率 | 1.0 |
-| 检索 | 平均 / P50 / P95 延迟 | 1044.82 / 1056.0 / 1463.06 ms |
-| 生成 | 成功率 / 引用率 | 1.0 / 1.0 |
-| 生成 | 忠实度启发式 | 0.875（2 条为措辞/空格差异误判，非事实错误） |
-| 生成 | 限流 / 超时 / 空回答 | 0 / 0 / 0 |
-| 生成 | 平均 / P50 / P95 延迟 | 2596.51 / 2510.6 / 3799.0 ms |
-
-> 命中定义：文档级，期望文档（按文件名映射）出现在 top-k 即计命中；关键词仅作参考不计入命中。
-> 诚实边界：本评估为小型受控基准（语料含重复演示文档 `rag-demo.txt` ×4），不代表生产准确率；忠实度为启发式而非绝对质量评分。
-> 详细逐样本结果、失败/污染分析与复现命令见 `evaluation/results/` 与 [docs/retrieval-evaluation.md](docs/retrieval-evaluation.md)。
-
-另有 `scripts/evaluate_real_embedding.sh` 为快速冒烟脚本（自动生成 3 主题 demo 文档并跑 4 问），仅用于验证启动链路，非本仓库正式评估。
-
-## 文档索引
+## 21. 文档索引
 
 [docs/configuration.md](docs/configuration.md) · [docs/runbook.md](docs/runbook.md) · [docs/demo-script.md](docs/demo-script.md) · [docs/database.md](docs/database.md) · [docs/parser.md](docs/parser.md) · [docs/vector-index.md](docs/vector-index.md) · [docs/search.md](docs/search.md) · [docs/rag.md](docs/rag.md) · [docs/qdrant.md](docs/qdrant.md) · [docs/REAL_EMBEDDING.md](docs/REAL_EMBEDDING.md) · [docs/retrieval-evaluation.md](docs/retrieval-evaluation.md) · [docs/roadmap.md](docs/roadmap.md)
