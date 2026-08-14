@@ -59,7 +59,7 @@ boolean real();             // false / true
 - 端点：`POST {endpoint}`，`endpoint` 默认 `https://open.bigmodel.cn/api/paas/v4/embeddings`；
 - 运行时去掉尾部 `/embeddings` 作为 RestClient `baseUrl`；
 - 请求体：`{"model":"embedding-3","input":[...],"dimensions":1024}`（embedding-3 不传 dimensions 时默认返回 2048 维，必须显式传 1024）；
-- 鉴权：`Authorization: Bearer <API_KEY>`，Key 仅来自 `${ZHIPU_API_KEY}` / `${AI_API_KEY}` 注入到 RestClient 头；
+- 鉴权：调用时在请求头携带鉴权令牌（与标准 OpenAI-compatible 鉴权一致），Key 仅来自 `${ZHIPU_API_KEY}` / `${AI_API_KEY}` 注入到 RestClient 头；
 - 响应：`{"data":[{"index":0,"embedding":[...]},...],"model":"embedding-3"}`。
 
 ## 7. 批量与重试
